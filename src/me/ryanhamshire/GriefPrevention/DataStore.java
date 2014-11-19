@@ -1152,7 +1152,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.TrappedWontWorkHere, "Sorry, unable to find a safe location to teleport you to.  Contact an admin, or consider /kill if you don't want to wait.", null);
 		this.addDefault(defaults, Messages.CommandBannedInPvP, "You can't use that command while in PvP combat.", null);
 		this.addDefault(defaults, Messages.UnclaimCleanupWarning, "The land you've unclaimed may be changed by other players or cleaned up by administrators.  If you've built something there you want to keep, you should reclaim it.", null);
-		this.addDefault(defaults, Messages.BuySellNotConfigured, "Sorry, buying anhd selling claim blocks is disabled.", null);
+		this.addDefault(defaults, Messages.BuySellNotConfigured, "Sorry, buying and selling claim blocks is disabled.", null);
 		this.addDefault(defaults, Messages.NoTeleportPvPCombat, "You can't teleport while fighting another player.", null);
 		this.addDefault(defaults, Messages.NoTNTDamageAboveSeaLevel, "Warning: TNT will not destroy blocks above sea level.", null);
 		this.addDefault(defaults, Messages.NoTNTDamageClaims, "Warning: TNT will not destroy claimed blocks.", null);
@@ -1166,6 +1166,13 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.NoPistonsOutsideClaims, "Warning: Pistons won't move blocks outside land claims.", null);
 		this.addDefault(defaults, Messages.SoftMuted, "Soft-muted {0}.", "The changed player's name.");
 		this.addDefault(defaults, Messages.UnSoftMuted, "Un-soft-muted {0}.", "The changed player's name.");
+		this.addDefault(defaults, Messages.TurningOnPVP, "This claim will allow PvP in 30 seconds", null);
+		this.addDefault(defaults, Messages.TurningOffPVP, "PvP will be disabled in this claim in 30 seconds", null);
+		this.addDefault(defaults, Messages.AlreadyToggled, "PvP toggled too soon, please wait.", null);
+		this.addDefault(defaults, Messages.PvpAllowed, "PvP is allowed in this claim", null);
+		this.addDefault(defaults, Messages.PvpDisabled, "PvP has been disabled for this claim", null);
+		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, best find something else to do", "0: The claim owner");
+		this.addDefault(defaults, Messages.EjectedSuccess, "Ejected {0}", "0: The player who was ejected");
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));

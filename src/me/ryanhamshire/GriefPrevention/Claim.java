@@ -59,6 +59,7 @@ public class Claim
 	public boolean inDataStore = false;
 	
 	public boolean areExplosivesAllowed = false;
+	public boolean isPvpAllowed = false;
 	
 	//parent claim
 	//only used for claim subdivisions.  top level claims have null here

@@ -1333,6 +1333,13 @@ class PlayerEventHandler implements Listener
 					playerData.lastClaim = claim;
 					GriefPrevention.sendMessage(player, TextMode.Info, Messages.BlockClaimed, claim.getOwnerName());
 					
+					//let them know the pvp status of this claim
+					if(claim.isPvpAllowed)
+						GriefPrevention.sendMessage(player, TextMode.Err, Messages.PvpAllowed);
+					else
+						GriefPrevention.sendMessage(player, TextMode.Success, Messages.PvpDisabled);
+						
+					
 					//visualize boundary
 					Visualization visualization = Visualization.FromClaim(claim, clickedBlock.getY(), VisualizationType.Claim, player.getLocation());
 					Visualization.Apply(player, visualization);

@@ -31,6 +31,7 @@ import java.util.logging.Logger;
 
 import net.milkbowl.vault.economy.Economy;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.GameMode;
@@ -53,6 +54,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class GriefPrevention extends JavaPlugin
 {
+	//list of claims that have been toggled recently
+	private static List<Claim> toggled = new ArrayList<Claim>();
+	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
 	
@@ -839,6 +843,17 @@ public class GriefPrevention extends JavaPlugin
 		if (sender instanceof Player) 
 		{
 			player = (Player) sender;
+		}
+		//eject
+		if(cmd.getName().equalsIgnoreCase("eject") && player != null)
+		{
+			return this.ejectCommand(player);
+		}
+		
+		//claimpvp
+		if(cmd.getName().equalsIgnoreCase("claimpvp") && player != null)
+		{
+			return this.enablePVP(player);
 		}
 		
 		//abandonclaim
@@ -2621,5 +2636,96 @@ public class GriefPrevention extends JavaPlugin
 		{
 			return overrideValue;
 		}		
+	}
+	
+	private boolean ejectCommand(Player player)
+	{
+		//determine which claim the player is standing in
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
+		
+		ArrayList<String> builders = new ArrayList<String>();
+		ArrayList<String> containers = new ArrayList<String>();
+		ArrayList<String> accessors = new ArrayList<String>();
+		ArrayList<String> managers = new ArrayList<String>();
+		
+		//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
+		claim.getPermissions(builders, containers, accessors, managers); 
+		
+		//loop through all online players, if they are online, and not friendly, eject them
+		for(Player p : Bukkit.getOnlinePlayers())
+		{
+			if(this.dataStore.getClaimAt(p.getLocation(), true, claim).equals(claim)) //if the player is in the claim
+			{
+				//if none of the permissions are there
+				if(!(builders.contains(p) || containers.contains(p) || accessors.contains(p) || managers.contains(p)))
+				{
+					ejectPlayer(p);
+					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
+					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+				}
+			}
+		}
+		return true;
+	}
+	
+	private boolean enablePVP(final Player player)
+	{
+		
+		//determine which claim the player is standing in
+		final Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
+		
+		if(claim == null)
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		
+		else
+		{
+			//make sure the claim isn't in the process of being toggled
+			if(toggled.contains(claim))
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.AlreadyToggled);
+			else
+			{
+				String noEditReason = claim.allowEdit(player);
+				if(noEditReason != null)
+				{
+					GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
+					return true;
+				}
+				
+				//add it to the list
+				toggled.add(claim);
+				//get a list of players inside the claim
+				final List<Player> inside = new ArrayList<Player>();
+				for(Player p : Bukkit.getOnlinePlayers())
+				{
+					if(this.dataStore.getClaimAt(p.getLocation(), true, claim).equals(claim)) //if the player is in the claim
+					{
+						inside.add(p);
+						if(!claim.isPvpAllowed)
+							GriefPrevention.sendMessage(p, TextMode.Warn, Messages.TurningOnPVP);
+						else
+							GriefPrevention.sendMessage(p, TextMode.Warn, Messages.TurningOffPVP);
+					}
+				}
+				
+				//schedule task to remove claim from waitlist, and turn on/off pvp
+				Bukkit.getScheduler().scheduleSyncDelayedTask(instance, new Runnable()
+				{
+					public void run()
+					{
+						claim.isPvpAllowed = !claim.isPvpAllowed;
+						toggled.remove(toggled.indexOf(claim));
+						for(Player p : inside) //let everyone that was in the claim, know that it's been updated
+						{
+							if(claim.isPvpAllowed)
+								GriefPrevention.sendMessage(p, TextMode.Success, Messages.PvpAllowed);
+							else
+								GriefPrevention.sendMessage(p, TextMode.Success, Messages.PvpDisabled);
+						}
+					}
+				}
+				, 20L * 30); //wait 30 seconds before running the task
+			}
+		}
+		return true;
 	}
 }

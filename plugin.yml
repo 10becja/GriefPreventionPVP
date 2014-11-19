@@ -1,10 +1,19 @@
 name: GriefPrevention
+description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 8.9
+version: 8.9.1
 commands:
+   eject:
+      description: Removes untrusted players from the claim.
+      usage: /eject
+      permission: griefprevention.claims
+   claimpvp:
+      description: Enables pvp inside this claim
+      usage: /claimpvp
+      permission: griefprevention.claims
    abandonclaim:
       description: Deletes a claim.
       usage: /AbandonClaim
