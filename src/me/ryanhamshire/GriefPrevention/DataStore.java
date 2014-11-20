@@ -1171,7 +1171,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.AlreadyToggled, "PvP toggled too soon, please wait.", null);
 		this.addDefault(defaults, Messages.PvpAllowed, "PvP is allowed in this claim", null);
 		this.addDefault(defaults, Messages.PvpDisabled, "PvP has been disabled for this claim", null);
-		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, best find something else to do", "0: The claim owner");
+		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, go bother someone else.", "0: The claim owner");
 		this.addDefault(defaults, Messages.EjectedSuccess, "Ejected {0}", "0: The player who was ejected");
 		
 		//load the config file

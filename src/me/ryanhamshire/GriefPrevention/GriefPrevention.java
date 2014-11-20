@@ -2644,25 +2644,39 @@ public class GriefPrevention extends JavaPlugin
 		//determine which claim the player is standing in
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
 		
-		ArrayList<String> builders = new ArrayList<String>();
-		ArrayList<String> containers = new ArrayList<String>();
-		ArrayList<String> accessors = new ArrayList<String>();
-		ArrayList<String> managers = new ArrayList<String>();
+		if(claim == null)
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
 		
-		//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
-		claim.getPermissions(builders, containers, accessors, managers); 
-		
-		//loop through all online players, if they are online, and not friendly, eject them
-		for(Player p : Bukkit.getOnlinePlayers())
+		else
 		{
-			if(this.dataStore.getClaimAt(p.getLocation(), true, claim).equals(claim)) //if the player is in the claim
+			//see if the player can edit the claim
+			String noEditReason = claim.allowEdit(player);
+			if(noEditReason != null)
 			{
-				//if none of the permissions are there
-				if(!(builders.contains(p) || containers.contains(p) || accessors.contains(p) || managers.contains(p)))
+				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
+				return true;
+			}
+			ArrayList<String> builders = new ArrayList<String>();
+			ArrayList<String> containers = new ArrayList<String>();
+			ArrayList<String> accessors = new ArrayList<String>();
+			ArrayList<String> managers = new ArrayList<String>();
+			
+			//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
+			claim.getPermissions(builders, containers, accessors, managers); 
+			
+			//loop through all online players, if they are online, and not friendly, eject them
+			for(Player p : Bukkit.getOnlinePlayers())
+			{
+				Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
+				if( c != null && c.equals(claim)) //if the player is in the claim
 				{
-					ejectPlayer(p);
-					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
-					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+					//if none of the permissions are there. Also if not the owner
+					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p) || containers.contains(p) || accessors.contains(p) || managers.contains(p)))
+					{
+						ejectPlayer(p);
+						GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
+						GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+					}
 				}
 			}
 		}
@@ -2698,7 +2712,8 @@ public class GriefPrevention extends JavaPlugin
 				final List<Player> inside = new ArrayList<Player>();
 				for(Player p : Bukkit.getOnlinePlayers())
 				{
-					if(this.dataStore.getClaimAt(p.getLocation(), true, claim).equals(claim)) //if the player is in the claim
+					Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
+					if( c != null && c.equals(claim)) //if the player is in the claim
 					{
 						inside.add(p);
 						if(!claim.isPvpAllowed)

@@ -409,7 +409,7 @@ class EntityEventHandler implements Listener
 			if(GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims || GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims)
 			{
 				Claim attackerClaim = this.dataStore.getClaimAt(attacker.getLocation(), false, attackerData.lastClaim);
-				if(	attackerClaim != null && 
+				if(	attackerClaim != null && !attackerClaim.isPvpAllowed &&
 					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
 					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
 					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
@@ -421,7 +421,7 @@ class EntityEventHandler implements Listener
 				}
 				
 				Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
-				if( defenderClaim != null &&
+				if( defenderClaim != null && !defenderClaim.isPvpAllowed &&
 					(defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
 		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
 					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
@@ -495,7 +495,8 @@ class EntityEventHandler implements Listener
 				PlayerData playerData = null;
 				
 				//if not a player or an explosive, allow
-				if(attacker == null && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))				{
+				if(attacker == null && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
+				{
 				    return;
 				}
 				
