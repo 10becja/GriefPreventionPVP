@@ -1,4 +1,4 @@
-name: GriefPrevention
+name: GriefPreventionPVP
 description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground]
