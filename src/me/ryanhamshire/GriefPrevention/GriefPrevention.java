@@ -2700,7 +2700,7 @@ public class GriefPrevention extends JavaPlugin
 			
 			//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
 			claim.getPermissions(builders, containers, accessors, managers); 
-			
+						
 			//loop through all online players, if they are online, and not friendly, eject them
 			for(Player p : Bukkit.getOnlinePlayers())
 			{
@@ -2708,7 +2708,10 @@ public class GriefPrevention extends JavaPlugin
 				if( c != null && c.equals(claim)) //if the player is in the claim
 				{
 					//if none of the permissions are there. Also if not the owner
-					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p.getName()) || containers.contains(p.getName()) || accessors.contains(p.getName()) || managers.contains(p.getName())))
+					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p.getUniqueId().toString()) 
+															  || containers.contains(p.getUniqueId().toString()) 
+															  || accessors.contains(p.getUniqueId().toString()) 
+															  || managers.contains(p.getUniqueId().toString())))
 					{
 						ejectPlayer(p);
 						GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
