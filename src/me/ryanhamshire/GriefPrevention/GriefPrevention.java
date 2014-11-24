@@ -2708,7 +2708,7 @@ public class GriefPrevention extends JavaPlugin
 				if( c != null && c.equals(claim)) //if the player is in the claim
 				{
 					//if none of the permissions are there. Also if not the owner
-					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p) || containers.contains(p) || accessors.contains(p) || managers.contains(p)))
+					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p.getName()) || containers.contains(p.getName()) || accessors.contains(p.getName()) || managers.contains(p.getName())))
 					{
 						ejectPlayer(p);
 						GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
