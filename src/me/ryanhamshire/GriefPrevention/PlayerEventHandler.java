@@ -587,10 +587,6 @@ class PlayerEventHandler implements Listener
 		
 		//in case player has changed his name, on successful login, update UUID > Name mapping
 		GriefPrevention.cacheUUIDNamePair(player.getUniqueId(), player.getName());
-		
-		//also cache the reverse mapping
-		GriefPrevention.instance.playerNameToIDMap.put(player.getName(), playerID);
-		GriefPrevention.instance.playerNameToIDMap.put(player.getName().toLowerCase(), playerID);
 	}
 	
 	//when a player spawns, conditionally apply temporary pvp protection 
@@ -1199,7 +1195,6 @@ class PlayerEventHandler implements Listener
 		    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
 			if(claim != null)
 			{
-			    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 			    playerData.lastClaim = claim;
 				
 				String noAccessReason = claim.allowAccess(player);
@@ -1236,7 +1231,8 @@ class PlayerEventHandler implements Listener
 			if(action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) return;
 			
 			//what's the player holding?
-			Material materialInHand = player.getItemInHand().getType();		
+			ItemStack itemInHand = player.getItemInHand();
+			Material materialInHand = itemInHand.getType();		
 			
 			//if it's bonemeal, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
 			if(clickedBlock != null && materialInHand == Material.INK_SACK)
@@ -1376,6 +1372,33 @@ class PlayerEventHandler implements Listener
 				
 				return;
 			}
+			
+			//if holding a non-vanilla item
+			else if(Material.getMaterial(itemInHand.getTypeId()) == null)
+            {
+                //assume it's a long range tool and project out ahead
+                if(action == Action.RIGHT_CLICK_AIR)
+                {
+                    //try to find a far away non-air block along line of sight
+                    clickedBlock = getTargetBlock(player, 100);
+                }
+                
+                //if target is claimed, require build trust permission
+                if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
+                Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
+                if(claim != null)
+                {
+                    String reason = claim.allowBreak(player, Material.AIR);
+                    if(reason != null)
+                    {
+                        GriefPrevention.sendMessage(player, TextMode.Err, reason);
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+                
+                return;
+            }
 			
 			//if it's a golden shovel
 			else if(materialInHand != GriefPrevention.instance.config_claims_modificationTool) return;
@@ -1925,6 +1948,7 @@ class PlayerEventHandler implements Listener
 	    if(cachedValue != null)
 	    {
 	        return cachedValue.booleanValue();
+	        
 	    }
 	    else
 	    {

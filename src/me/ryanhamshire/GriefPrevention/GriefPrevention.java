@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -309,7 +310,7 @@ public class GriefPrevention extends JavaPlugin
 		int playersCached = 0;
 		OfflinePlayer [] offlinePlayers = this.getServer().getOfflinePlayers();
 		long now = System.currentTimeMillis();
-		final long TENDAYS = 1000 * 60 * 60 * 24 * 10; 
+		final long millisecondsPerDay = 1000 * 60 * 60 * 24;
 		for(OfflinePlayer player : offlinePlayers)
 		{
 		    try
@@ -317,10 +318,12 @@ public class GriefPrevention extends JavaPlugin
     		    String playerName = player.getName();
     		    UUID playerID = player.getUniqueId();
     		    if(playerName == null || playerID == null) continue;
-    		    long absentMilliseconds = now - player.getLastPlayed();
+    		    long lastSeen = player.getLastPlayed();
     		    
-    		    //if the player has been seen in the last 10 days, cache his name/UUID pair
-    		    if(absentMilliseconds < TENDAYS)
+    		    //if the player has been seen in the last 30 days, cache his name/UUID pair
+    		    long diff = now - lastSeen;
+    		    long daysDiff = diff / millisecondsPerDay;
+    		    if(daysDiff <= 30)
     		    {
     		        this.playerNameToIDMap.put(playerName, playerID);
     		        this.playerNameToIDMap.put(playerName.toLowerCase(), playerID);
@@ -1033,7 +1036,7 @@ public class GriefPrevention extends JavaPlugin
 			OfflinePlayer targetPlayer = this.resolvePlayerByName(args[0]);
 			if(targetPlayer == null)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 				return true;
 			}
 			
@@ -1116,7 +1119,7 @@ public class GriefPrevention extends JavaPlugin
 			
 			player.sendMessage(permissions.toString());
 			permissions = new StringBuilder();
-			permissions.append(ChatColor.BLUE + "A :");
+			permissions.append(ChatColor.BLUE + "A:");
 				
 			if(accessors.size() > 0)
 			{
@@ -1170,7 +1173,7 @@ public class GriefPrevention extends JavaPlugin
 					otherPlayer = this.resolvePlayerByName(args[0]);
 					if(!clearPermissions && otherPlayer == null && !args[0].equals("public"))
 					{
-						GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+						GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 						return true;
 					}
 					
@@ -1601,7 +1604,7 @@ public class GriefPrevention extends JavaPlugin
 			OfflinePlayer otherPlayer = this.resolvePlayerByName(args[0]);
 			if(otherPlayer == null)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 				return true;
 			}
 			
@@ -1651,7 +1654,7 @@ public class GriefPrevention extends JavaPlugin
 				otherPlayer = this.resolvePlayerByName(args[0]);
 				if(otherPlayer == null)
 				{
-					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 					return true;
 				}
 			}
@@ -1685,7 +1688,7 @@ public class GriefPrevention extends JavaPlugin
 			Player targetPlayer = this.getServer().getPlayer(args[0]);
 			if(targetPlayer == null)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 				return true;
 			}
 			
@@ -1696,7 +1699,7 @@ public class GriefPrevention extends JavaPlugin
 				recipientPlayer = this.getServer().getPlayer(args[1]);
 				if(recipientPlayer == null)
 				{
-					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 					return true;
 				}
 			}
@@ -1792,7 +1795,7 @@ public class GriefPrevention extends JavaPlugin
 			OfflinePlayer targetPlayer = this.resolvePlayerByName(args[0]);
 			if(targetPlayer == null)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 				return true;
 			}
 			
@@ -1891,7 +1894,7 @@ public class GriefPrevention extends JavaPlugin
 				defender = this.getServer().getPlayer(args[0]);
 				if(defender == null)
 				{
-					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 					return true;
 				}
 			}
@@ -1979,7 +1982,7 @@ public class GriefPrevention extends JavaPlugin
             OfflinePlayer targetPlayer = this.resolvePlayerByName(args[0]);
             if(targetPlayer == null)
             {
-                GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
                 return true;
             }
             
@@ -2117,7 +2120,7 @@ public class GriefPrevention extends JavaPlugin
 			otherPlayer = this.resolvePlayerByName(recipientName);
 			if(otherPlayer == null && !recipientName.equals("public") && !recipientName.equals("all"))
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound);
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
 				return;
 			}
 			
@@ -2334,7 +2337,11 @@ public class GriefPrevention extends JavaPlugin
         //limit memory footprint
         if(GriefPrevention.uuidToNameMap.size() >= 500) GriefPrevention.uuidToNameMap.clear();
         
-        GriefPrevention.uuidToNameMap.put(playerID, playerName);        
+        GriefPrevention.uuidToNameMap.put(playerID, playerName);  
+        
+        //always store the reverse mapping
+        GriefPrevention.instance.playerNameToIDMap.put(playerName, playerID);
+        GriefPrevention.instance.playerNameToIDMap.put(playerName.toLowerCase(), playerID);
     }
 
     //string overload for above helper
