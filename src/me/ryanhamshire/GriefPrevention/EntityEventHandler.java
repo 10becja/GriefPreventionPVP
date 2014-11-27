@@ -570,6 +570,7 @@ class EntityEventHandler implements Listener
 		//determine which player is attacking, if any
 		Player attacker = null;
 		Entity damageSource = event.getAttacker();
+		if(damageSource == null) return; //sometimes causes weird null error
 		if(damageSource.getType() == EntityType.PLAYER)
 		{
 			attacker = (Player)damageSource;
