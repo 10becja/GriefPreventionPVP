@@ -989,8 +989,8 @@ class PlayerEventHandler implements Listener
 			minLavaDistance = 3;
 		}
 		
-		//otherwise no wilderness dumping in creative mode worlds
-		else if(GriefPrevention.instance.creativeRulesApply(block.getLocation()))
+		//otherwise no wilderness dumping of lava above ground
+		else 
 		{
 			if(block.getY() >= GriefPrevention.instance.getSeaLevel(block.getWorld()) - 5 && !player.hasPermission("griefprevention.lava"))
 			{
