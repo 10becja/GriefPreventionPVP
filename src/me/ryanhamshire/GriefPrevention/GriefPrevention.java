@@ -2707,8 +2707,9 @@ public class GriefPrevention extends JavaPlugin
 				Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
 				if( c != null && c.equals(claim)) //if the player is in the claim
 				{
-					//if none of the permissions are there. Also if not the owner
-					if(!(p.getName().equals(c.getOwnerName()) || builders.contains(p.getUniqueId().toString()) 
+					//if none of the permissions are there. Also if not the owner, or has noeject permissions
+					if(!(p.getName().equals(c.getOwnerName()) || p.hasPermission("griefprevention.noeject")
+															  || builders.contains(p.getUniqueId().toString()) 
 															  || containers.contains(p.getUniqueId().toString()) 
 															  || accessors.contains(p.getUniqueId().toString()) 
 															  || managers.contains(p.getUniqueId().toString())))
