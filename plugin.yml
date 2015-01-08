@@ -1,10 +1,10 @@
 name: GriefPrevention
 description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
-softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground]
+softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 9.6.p
+version: 10.2.0
 commands:
    eject:
       description: Removes untrusted players from the claim.
@@ -149,6 +149,10 @@ commands:
    givepet:
       description: Allows a player to give away a pet he or she tamed.
       usage: /GivePet <player>
+   gpblockinfo:
+      description: Allows an administrator to get technical information about blocks in the world and items in hand.
+      usage: /GPBlockInfo
+      permission: griefprevention.gpblockinfo
 permissions:
     griefprevention.createclaims:
         description: Grants permission to create claims.
@@ -169,6 +173,7 @@ permissions:
             griefprevention.softmute: true
             griefprevention.reload: true
             griefprevention.visualizenearbyclaims: true
+            griefprevention.overrideclaimcountlimit: true
     griefprevention.restorenature:
         description: Grants permission to use /RestoreNature.
         default: op
@@ -214,3 +219,12 @@ permissions:
     griefprevention.visualizenearbyclaims:
         description: Allows a player to see all nearby claims at once.
         default: op
+<<<<<<< HEAD
+=======
+    griefprevention.gpblockinfo:
+        description: Grants access to /GPBlockInfo.
+        default: op
+    griefprevention.overrideclaimcountlimit:
+        description: Allows players to create more claims than the limit specified by the config.
+        default: op
+>>>>>>> upstream/master

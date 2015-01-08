@@ -214,7 +214,7 @@ public class BlockEventHandler implements Listener
 				//radius == 0 means protect ONLY the chest
 				if(GriefPrevention.instance.config_claims_automaticClaimsForNewPlayersRadius == 0)
 				{					
-					this.dataStore.createClaim(block.getWorld(), block.getX(), block.getX(), block.getY(), block.getY(), block.getZ(), block.getZ(), player.getUniqueId(), null, null);
+					this.dataStore.createClaim(block.getWorld(), block.getX(), block.getX(), block.getY(), block.getY(), block.getZ(), block.getZ(), player.getUniqueId(), null, null, player);
 					GriefPrevention.sendMessage(player, TextMode.Success, Messages.ChestClaimConfirmation);					
 				}
 				
@@ -228,7 +228,8 @@ public class BlockEventHandler implements Listener
 							block.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance, block.getY(), 
 							block.getZ() - radius, block.getZ() + radius, 
 							player.getUniqueId(), 
-							null, null).succeeded)
+							null, null,
+							player).succeeded)
 					{
 						radius--;
 					}
@@ -242,7 +243,7 @@ public class BlockEventHandler implements Listener
 					Visualization.Apply(player, visualization);
 				}
 				
-				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo, DataStore.SURVIVAL_VIDEO_URL);
+				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
 			}
 			
 			//check to see if this chest is in a claim, and warn when it isn't
@@ -278,7 +279,7 @@ public class BlockEventHandler implements Listener
 				
 				if(playerData.getClaims().size() < 2)
 				{
-				    GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo, DataStore.SURVIVAL_VIDEO_URL);
+				    GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
 				}
 				
 				if(playerData.lastClaim != null)
@@ -605,7 +606,11 @@ public class BlockEventHandler implements Listener
             this.lastSpreadClaim = toClaim;
             if(!toClaim.contains(spreadEvent.getBlock().getLocation(), false, true))
             {
-                spreadEvent.setCancelled(true);
+                //exception: from parent into subdivision
+                if(toClaim.parent == null || !toClaim.parent.contains(spreadEvent.getBlock().getLocation(), false, false))
+                {
+                    spreadEvent.setCancelled(true);
+                }
             }
         }
 	}
