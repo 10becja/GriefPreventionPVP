@@ -87,6 +87,24 @@ class PlayerEventHandler implements Listener
 		this.dataStore = dataStore;
 	}
 	
+	//when a player moves, see if they are allowed inside that claim
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+	public void onPlayerMove (PlayerMoveEvent event)
+	{
+		Player p = event.getPlayer();
+		Location to = event.getTo();
+		Claim c = this.dataStore.getClaimAt(to, true, null);
+		if(c == null)
+			return;
+		String nameID = p.getName() + String.valueOf(c.getID());
+		if(GriefPrevention.getBlocked().contains(nameID))
+		{
+			GriefPrevention.sendMessage(p, TextMode.Err, "You have been recently ejected from this claim. "
+					+ "You must wait before entering again");
+			event.setCancelled(true);
+		}
+	}
+	
 	//when a player chats, monitor for spam
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
 	synchronized void onPlayerChat (AsyncPlayerChatEvent event)

@@ -1229,6 +1229,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.PvpDisabled, "PvP has been disabled for this claim", null);
 		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, go bother someone else.", "0: The claim owner");
 		this.addDefault(defaults, Messages.EjectedSuccess, "Ejected {0}", "0: The player who was ejected");
+		this.addDefault(defaults, Messages.NoPlayerFound, "Could not find a player named {0}", "0: Missing Player");
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));

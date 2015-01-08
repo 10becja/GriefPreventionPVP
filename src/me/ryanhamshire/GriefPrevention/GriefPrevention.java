@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -57,6 +58,9 @@ public class GriefPrevention extends JavaPlugin
 {
 	//list of claims that have been toggled recently
 	private static List<Claim> toggled = new ArrayList<Claim>();
+	
+	//Map of claims a player is not allowed in
+	private static List<String> blocked = new ArrayList<String>();
 	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
@@ -854,10 +858,15 @@ public class GriefPrevention extends JavaPlugin
 		{
 			player = (Player) sender;
 		}
+		//allowenter
+		if(cmd.getName().equalsIgnoreCase("allowenter") && player != null)
+		{
+			return this.allowenterCommand(player, args);
+		}
 		//eject
 		if(cmd.getName().equalsIgnoreCase("eject") && player != null)
 		{
-			return this.ejectCommand(player);
+			return this.ejectCommand(player, args);
 		}
 		
 		//claimpvp
@@ -2626,7 +2635,7 @@ public class GriefPrevention extends JavaPlugin
 		}		
 	}
 	
-	private boolean ejectCommand(Player player)
+	private boolean ejectCommand(Player player, String[] args)
 	{
 		//determine which claim the player is standing in
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
@@ -2643,35 +2652,129 @@ public class GriefPrevention extends JavaPlugin
 				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
 				return true;
 			}
-			ArrayList<String> builders = new ArrayList<String>();
-			ArrayList<String> containers = new ArrayList<String>();
-			ArrayList<String> accessors = new ArrayList<String>();
-			ArrayList<String> managers = new ArrayList<String>();
-			
-			//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
-			claim.getPermissions(builders, containers, accessors, managers); 
-						
-			//loop through all online players, if they are online, and not friendly, eject them
-			for(Player p : Bukkit.getOnlinePlayers())
+			//they can edit claim, see what sort of eject they want to do
+			switch (args.length)
 			{
-				Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
-				if( c != null && c.equals(claim)) //if the player is in the claim
-				{
-					//if none of the permissions are there. Also if not the owner, or has noeject permissions
-					if(!(p.getName().equals(c.getOwnerName()) || p.hasPermission("griefprevention.noeject")
-															  || builders.contains(p.getUniqueId().toString()) 
-															  || containers.contains(p.getUniqueId().toString()) 
-															  || accessors.contains(p.getUniqueId().toString()) 
-															  || managers.contains(p.getUniqueId().toString())))
-					{
-						ejectPlayer(p);
-						GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
-						GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
-					}
-				}
+			case 0:
+				ejectAll(player, claim);
+				break;
+			case 1:
+				ejectSome(player, claim, args[0]);
+				break;
+			default:
+				return false;	
 			}
 		}
 		return true;
+	}
+	
+	public static List<String> getBlocked()
+	{
+		return blocked;
+	}
+	
+	private boolean allowenterCommand(Player player, String[] args)
+	{
+		switch (args.length)
+		{
+		case 1:
+			//see if the player can edit the claim
+			Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
+			String noEditReason = claim.allowEdit(player);
+			if(noEditReason != null)
+			{
+				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
+				return true;
+			}
+			@SuppressWarnings("deprecation")
+			Player target = Bukkit.getPlayer(args[0]);
+			if(target==null)
+				GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoPlayerFound, args[0]);
+			else
+			{
+				String nameID = target.getName() + String.valueOf(claim.getID());
+				if(blocked.remove(nameID)) //if the target is blocked from this claim
+					GriefPrevention.sendMessage(player, TextMode.Success, target.getName()+" can enter this claim again.");
+				else
+					GriefPrevention.sendMessage(player, TextMode.Warn, target.getName()+" is not blocked from this claim.");
+			}
+			break;
+		default:
+			return false;
+		}
+		return true;
+	}
+	
+	private void ejectSome(final Player player, Claim claim, String target)
+	{
+		@SuppressWarnings("deprecation")
+		Player p = Bukkit.getPlayer(target);
+		if(p==null) //if there is no player named that online
+			GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoPlayerFound, target);
+		else
+		{
+			//if the target is not in that claim, or a mod, tell player that they aren't in it
+			//this prevent players from being ejected from random claims
+			Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
+			if(p.hasPermission("griefprevention.noeject") || c == null || !c.equals(claim))
+			{
+				GriefPrevention.sendMessage(player, TextMode.Warn, p.getName()+" is not in this claim");
+				return;
+			}
+			final String nameID = p.getName() + String.valueOf(claim.getID()); //create unique name/id entry for list
+			if(blocked.contains(nameID)) //prevent players from adding them to list of they are already in it
+				player.sendMessage(TextMode.Warn + p.getName()+ " is already blocked from entering this claim");
+			else
+			{	
+				ejectPlayer(p);
+				GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
+				GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+				player.sendMessage(TextMode.Warn + p.getName() + 
+						" can't Enter for 1 hour. To allow them to enter again, use /allowenter <name>");
+				blocked.add(nameID); //add them to the list of not allowed players
+				
+				//schedule task to remove player from block list
+				Bukkit.getScheduler().scheduleSyncDelayedTask(instance, new Runnable()
+				{
+					public void run()
+					{
+						blocked.remove(nameID);
+					}
+				}
+				, 20L * 60 * 60); //wait 1 hour before running the task	
+			}	
+		}		
+	}
+	
+	private void ejectAll(Player player, Claim claim)
+	{
+		ArrayList<String> builders = new ArrayList<String>();
+		ArrayList<String> containers = new ArrayList<String>();
+		ArrayList<String> accessors = new ArrayList<String>();
+		ArrayList<String> managers = new ArrayList<String>();
+		
+		//get everyone who has some sort of trust to this claim. Don't want to eject friendlies
+		claim.getPermissions(builders, containers, accessors, managers); 
+					
+		//loop through all online players, if they are online, and not friendly, eject them
+		for(Player p : Bukkit.getOnlinePlayers())
+		{
+			Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
+			if( c != null && c.equals(claim)) //if the player is in the claim
+			{
+				//if none of the permissions are there. Also if not the owner, or has noeject permissions
+				if(!(p.getName().equals(c.getOwnerName()) || p.hasPermission("griefprevention.noeject")
+														  || builders.contains(p.getUniqueId().toString()) 
+														  || containers.contains(p.getUniqueId().toString()) 
+														  || accessors.contains(p.getUniqueId().toString()) 
+														  || managers.contains(p.getUniqueId().toString())))
+				{
+					ejectPlayer(p);
+					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
+					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+				}
+			}
+		}
 	}
 	
 	private boolean enablePVP(final Player player)
