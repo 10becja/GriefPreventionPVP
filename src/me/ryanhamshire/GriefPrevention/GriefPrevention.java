@@ -2310,7 +2310,7 @@ public class GriefPrevention extends JavaPlugin
 	public void onDisable()
 	{ 
 		//save data for any online players
-		Collection<Player> players = (Collection<Player>)this.getServer().getOnlinePlayers();
+		Player[] players = this.getServer().getOnlinePlayers();
 		for(Player player : players)
 		{
 			UUID playerID = player.getUniqueId();
@@ -2735,9 +2735,6 @@ public class GriefPrevention extends JavaPlugin
 		}
 		return true;
 	}
-
-	//this tracks item stacks expected to drop which will need protection
-    ArrayList<PendingItemProtection> pendingItemWatchList = new ArrayList<PendingItemProtection>();
 
 	private static Block getTargetNonAirBlock(Player player, int maxDistance) throws IllegalStateException
     {
