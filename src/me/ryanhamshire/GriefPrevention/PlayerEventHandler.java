@@ -101,7 +101,7 @@ class PlayerEventHandler implements Listener
 		{
 			GriefPrevention.sendMessage(p, TextMode.Err, "You have been recently ejected from this claim. "
 					+ "You must wait before entering again");
-			event.setCancelled(true);
+			GriefPrevention.ejectPlayer(p);
 		}
 	}
 	
@@ -1291,6 +1291,7 @@ class PlayerEventHandler implements Listener
 						event.getAction() == Action.RIGHT_CLICK_BLOCK && (
 						this.isInventoryHolder(clickedBlock) ||
 						clickedBlockType == Material.ANVIL ||
+						clickedBlockType == Material.JUKEBOX ||
 						GriefPrevention.instance.config_mods_containerTrustIds.Contains(new MaterialInfo(clickedBlock.getTypeId(), clickedBlock.getData(), null)))))
 		{			
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
@@ -1412,7 +1413,8 @@ class PlayerEventHandler implements Listener
 			Material materialInHand = itemInHand.getType();		
 			
 			//if it's bonemeal or armor stand, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
-			if(clickedBlock != null && (materialInHand == Material.INK_SACK))
+			if(clickedBlock != null && (materialInHand == Material.INK_SACK ||
+					(materialInHand == Material.FLINT_AND_STEEL && clickedBlockType == Material.TNT)))
 			{
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), clickedBlockType);
 				if(noBuildReason != null)

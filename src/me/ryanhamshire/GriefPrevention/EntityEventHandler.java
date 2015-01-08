@@ -29,6 +29,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Enderman;
@@ -43,7 +44,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.Villager;
-
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -154,14 +154,35 @@ class EntityEventHandler implements Listener
 		if(!GriefPrevention.instance.config_zombiesBreakDoors) event.setCancelled(true);
 	}
 	
-	//don't allow entities to trample crops
+	//don't allow entities to trample crops, or arrows to activate buttons
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onEntityInteract(EntityInteractEvent event)
 	{
 		if(!GriefPrevention.instance.config_creaturesTrampleCrops && event.getBlock().getType() == Material.SOIL)
 		{
 			event.setCancelled(true);
+			return;
 		}
+		
+		if(event.getEntity() instanceof Arrow && event.getBlock().getType() == Material.WOOD_BUTTON)
+		{
+			Arrow arrow = (Arrow)event.getEntity();
+			if(arrow.getShooter() instanceof Player)
+			{
+				Player shooter = (Player) arrow.getShooter();
+				Claim claim = this.dataStore.getClaimAt(event.getBlock().getLocation(), false, null);
+				if (claim != null)
+				{
+					String noAccessReason = claim.allowAccess(shooter);
+					if(noAccessReason != null)
+					{
+						event.setCancelled(true);
+						GriefPrevention.sendMessage(shooter, TextMode.Err, noAccessReason);
+						return;
+					}
+				}
+			}
+		}	 
 	}
 	
 	//when an entity explodes...
@@ -685,12 +706,6 @@ class EntityEventHandler implements Listener
 			    Claim cachedClaim = null;
 				PlayerData playerData = null;
 				
-				//if not a player or an explosive, allow
-				if(attacker == null && damageSource != null && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
-				{
-				    return;
-				}
-				
 				if(attacker != null)
 				{
 					playerData = this.dataStore.getPlayerData(attacker.getUniqueId());
@@ -698,6 +713,16 @@ class EntityEventHandler implements Listener
 				}
 				
 				Claim claim = this.dataStore.getClaimAt(event.getEntity().getLocation(), false, cachedClaim);
+				//if not a player or an explosive, allow
+				if(attacker == null && damageSource != null && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
+				{
+					//if it's claimed, and a villager is being attacked by a monster, stop it. I have no idea what the thing a few lines down does
+					//but it never gets reached.
+					if(claim != null && event.getEntity() instanceof Villager && damageSource instanceof Monster)
+						event.setCancelled(true);
+					else
+						return;
+				}
 				
 				//if it's claimed
 				if(claim != null)

@@ -2379,7 +2379,7 @@ public class GriefPrevention extends JavaPlugin
 	}
 
 	//moves a player from the claim he's in to a nearby wilderness location
-	public Location ejectPlayer(Player player)
+	public static Location ejectPlayer(Player player)
 	{
 		//look for a suitable location
 		Location candidateLocation = player.getLocation();
