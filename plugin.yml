@@ -4,7 +4,7 @@ main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 10.2.3
+version: 10.2.5
 commands:
    allowenter:
       description: Allows a player who was ejected from a claim to enter it again.

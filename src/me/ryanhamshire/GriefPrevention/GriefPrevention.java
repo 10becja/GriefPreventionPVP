@@ -2646,7 +2646,7 @@ public class GriefPrevention extends JavaPlugin
 		else
 		{
 			//see if the player can edit the claim
-			String noEditReason = claim.allowEdit(player);
+			String noEditReason = claim.allowBuild(player, Material.AIR); //claim.allowEdit(player);
 			if(noEditReason != null)
 			{
 				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
@@ -2678,25 +2678,32 @@ public class GriefPrevention extends JavaPlugin
 		switch (args.length)
 		{
 		case 1:
-			//see if the player can edit the claim
 			Claim claim = this.dataStore.getClaimAt(player.getLocation(), true /*ignore height*/, null);
-			String noEditReason = claim.allowEdit(player);
-			if(noEditReason != null)
-			{
-				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
-				return true;
-			}
-			@SuppressWarnings("deprecation")
-			Player target = Bukkit.getPlayer(args[0]);
-			if(target==null)
-				GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoPlayerFound, args[0]);
+			//make sure they are in a claim
+			if(claim == null)
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
 			else
 			{
-				String nameID = target.getName() + String.valueOf(claim.getID());
-				if(blocked.remove(nameID)) //if the target is blocked from this claim
-					GriefPrevention.sendMessage(player, TextMode.Success, target.getName()+" can enter this claim again.");
+				//allow players with /trust to use command
+				String noEditReason = claim.allowBuild(player, Material.AIR); //claim.allowEdit(player);
+				if(noEditReason != null)
+				{
+					GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
+					return true;
+				}
+				@SuppressWarnings("deprecation")
+				Player target = Bukkit.getPlayer(args[0]);
+				//if the player is not online
+				if(target==null)
+					GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoPlayerFound, args[0]);
 				else
-					GriefPrevention.sendMessage(player, TextMode.Warn, target.getName()+" is not blocked from this claim.");
+				{
+					String nameID = target.getName() + String.valueOf(claim.getID());
+					if(blocked.remove(nameID)) //if the target is blocked from this claim
+						GriefPrevention.sendMessage(player, TextMode.Success, target.getName()+" can enter this claim again.");
+					else
+						GriefPrevention.sendMessage(player, TextMode.Warn, target.getName()+" is not blocked from this claim.");
+				}
 			}
 			break;
 		default:
@@ -2726,22 +2733,30 @@ public class GriefPrevention extends JavaPlugin
 				player.sendMessage(TextMode.Warn + p.getName()+ " is already blocked from entering this claim");
 			else
 			{	
-				ejectPlayer(p);
-				GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
-				GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
-				player.sendMessage(TextMode.Warn + p.getName() + 
-						" can't Enter for 1 hour. To allow them to enter again, use /allowenter <name>");
-				blocked.add(nameID); //add them to the list of not allowed players
-				
-				//schedule task to remove player from block list
-				Bukkit.getScheduler().scheduleSyncDelayedTask(instance, new Runnable()
+				//Don't eject someone from their own claim. That's just rude
+				if(p.getName().equals(c.getOwnerName()))
 				{
-					public void run()
-					{
-						blocked.remove(nameID);
-					}
+					player.sendMessage(TextMode.Warn + "You can't eject an owner from their claim!");
 				}
-				, 20L * 60 * 60); //wait 1 hour before running the task	
+				else
+				{
+					ejectPlayer(p);
+					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, claim.getOwnerName());
+					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
+					player.sendMessage(TextMode.Warn + p.getName() + 
+							" can't Enter for 1 hour. To allow them to enter again, use /allowenter <name>");
+					blocked.add(nameID); //add them to the list of not allowed players
+					
+					//schedule task to remove player from block list
+					Bukkit.getScheduler().scheduleSyncDelayedTask(instance, new Runnable()
+					{
+						public void run()
+						{
+							blocked.remove(nameID);
+						}
+					}
+					, 20L * 60 * 60); //wait 1 hour before running the task	
+				}
 			}	
 		}		
 	}
@@ -2770,7 +2785,7 @@ public class GriefPrevention extends JavaPlugin
 														  || managers.contains(p.getUniqueId().toString())))
 				{
 					ejectPlayer(p);
-					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, player.getName());
+					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, claim.getOwnerName());
 					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
 				}
 			}
