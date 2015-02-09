@@ -9,11 +9,11 @@ commands:
    allowenter:
       description: Allows a player who was ejected from a claim to enter it again.
       usage: /allowenter <player>
-      permission: griefprevention.claims
+      permission: griefprevention.eject
    eject:
       description: Removes untrusted players from the claim.
       usage: /eject (player)
-      permission: griefprevention.claims
+      permission: griefprevention.eject
    claimpvp:
       description: Enables pvp inside this claim
       usage: /claimpvp
@@ -160,6 +160,9 @@ commands:
       usage: /GPBlockInfo
       permission: griefprevention.gpblockinfo
 permissions:
+    griefprevention.eject:
+        description: Grants permission to eject players from claims.
+        default: true
     griefprevention.createclaims:
         description: Grants permission to create claims.
         default: true

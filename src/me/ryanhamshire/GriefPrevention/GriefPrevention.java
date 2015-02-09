@@ -845,11 +845,13 @@ public class GriefPrevention extends JavaPlugin
 		//allowenter
 		if(cmd.getName().equalsIgnoreCase("allowenter") && player != null)
 		{
+			if(!player.hasPermission("griefprevention.eject")) return true;
 			return this.allowenterCommand(player, args);
 		}
 		//eject
 		if(cmd.getName().equalsIgnoreCase("eject") && player != null)
 		{
+			if(!player.hasPermission("griefprevention.eject")) return true;
 			return this.ejectCommand(player, args);
 		}
 		
