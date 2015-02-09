@@ -44,6 +44,9 @@ public class PlayerData
 	//how many claim blocks the player has earned via play time
 	private Integer accruedClaimBlocks = null;
 	
+	//temporary holding area to avoid opening data files too early
+	private int newlyAccruedClaimBlocks = 0;
+	
 	//where this player was the last time we checked on him for earning claim blocks
 	public Location lastAfkCheckLocation = null;
 	
@@ -122,6 +125,13 @@ public class PlayerData
     //player which a pet will be given to when it's right-clicked
 	OfflinePlayer petGiveawayRecipient = null;
 	
+	//timestamp for last "you're building outside your land claims" message
+	Long buildWarningTimestamp = null;
+	
+	//spot where a player can't talk, used to mute new players until they've moved a little
+	//this is an anti-bot strategy.
+	Location noChatLocation = null;
+	
 	//whether or not this player is "in" pvp combat
 	public boolean inPvpCombat()
 	{
@@ -160,12 +170,22 @@ public class PlayerData
 	public int getAccruedClaimBlocks()
 	{
 	    if(this.accruedClaimBlocks == null) this.loadDataFromSecondaryStorage();
-        return accruedClaimBlocks;
+        
+	    //move any in the holding area
+	    int newTotal = this.accruedClaimBlocks + this.newlyAccruedClaimBlocks;
+	    this.newlyAccruedClaimBlocks = 0;
+        
+        //respect limits
+        if(newTotal > GriefPrevention.instance.config_claims_maxAccruedBlocks) newTotal = GriefPrevention.instance.config_claims_maxAccruedBlocks;
+	    this.accruedClaimBlocks = newTotal;
+        
+	    return accruedClaimBlocks;
     }
 
     public void setAccruedClaimBlocks(Integer accruedClaimBlocks)
     {
         this.accruedClaimBlocks = accruedClaimBlocks;
+        this.newlyAccruedClaimBlocks = 0;
     }
 
     public int getBonusClaimBlocks()
@@ -258,6 +278,9 @@ public class PlayerData
         
         return claims;
     }
-
-
+    
+    public void accrueBlocks(int howMany)
+    {
+        this.newlyAccruedClaimBlocks += howMany;
+    }
 }

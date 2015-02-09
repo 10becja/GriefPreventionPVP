@@ -158,6 +158,17 @@ public class FlatFileDataStore extends DataStore
             {
                 String currentFilename = playerFile.getName();
                 
+                //if corrected casing and a record already exists using the correct casing, skip this one
+                String correctedCasing = UUIDFetcher.correctedNames.get(currentFilename);
+                if(correctedCasing != null && !currentFilename.equals(correctedCasing))
+                {
+                    File correctedCasingFile = new File(playerDataFolder.getPath() + File.separator + correctedCasing);
+                    if(correctedCasingFile.exists())
+                    {
+                        continue;
+                    }
+                }
+                
                 //try to convert player name to UUID
                 UUID playerID = null;
                 try
@@ -215,7 +226,7 @@ public class FlatFileDataStore extends DataStore
 					while(line != null)
 					{					
 						//skip any SUB:### lines from previous versions
-					    if(line.startsWith("SUB:"))
+					    if(line.toLowerCase().startsWith("sub:"))
 					    {
 					        line = inStream.readLine();
 					    }
@@ -290,7 +301,7 @@ public class FlatFileDataStore extends DataStore
 						
 						//skip any remaining extra lines, until the "===" string, indicating the end of this claim or subdivision
 						line = inStream.readLine();
-						while(line != null && !line.contains("=========="))
+						while(line != null && !line.contains("==="))
 							line = inStream.readLine();
 						
 						//build a claim instance from those data

@@ -29,7 +29,10 @@ import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Hopper;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.minecart.HopperMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -39,14 +42,18 @@ import org.bukkit.event.block.BlockDispenseEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockIgniteEvent.IgniteCause;
+import org.bukkit.event.block.BlockMultiPlaceEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.world.StructureGrowEvent;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.material.Dispenser;
+import org.bukkit.metadata.MetadataValue;
 
 //event handlers related to blocks
 public class BlockEventHandler implements Listener 
@@ -104,8 +111,9 @@ public class BlockEventHandler implements Listener
 		boolean notEmpty = false;
 		for(int i = 0; i < event.getLines().length; i++)
 		{
-			if(event.getLine(i).length() != 0) notEmpty = true;
-			lines.append("\n" + event.getLine(i));
+			String withoutSpaces = event.getLine(i).replace(" ", ""); 
+		    if(!withoutSpaces.isEmpty()) notEmpty = true;
+			lines.append("\n  " + event.getLine(i));
 		}
 		
 		String signMessage = lines.toString();
@@ -129,6 +137,28 @@ public class BlockEventHandler implements Listener
 				}
 			}
 		}
+	}
+	
+	//when a player places multiple blocks...
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+	public void onBlocksPlace(BlockMultiPlaceEvent placeEvent)
+	{
+	    Player player = placeEvent.getPlayer();
+	    
+	    //don't track in worlds where claims are not enabled
+        if(!GriefPrevention.instance.claimsEnabledForWorld(placeEvent.getBlock().getWorld())) return;
+        
+        //make sure the player is allowed to build at the location
+        for(BlockState block : placeEvent.getReplacedBlockStates())
+        {
+            String noBuildReason = GriefPrevention.instance.allowBuild(player, block.getLocation(), block.getType());
+            if(noBuildReason != null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
+                placeEvent.setCancelled(true);
+                return;
+            }
+        }
 	}
 	
 	//when a player places a block...
@@ -187,7 +217,7 @@ public class BlockEventHandler implements Listener
 			if(block.getY() <= claim.lesserBoundaryCorner.getBlockY() && claim.allowBuild(player, block.getType()) == null)
 			{
 				//extend the claim downward
-				this.dataStore.extendClaim(claim, claim.getLesserBoundaryCorner().getBlockY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance);
+				this.dataStore.extendClaim(claim, block.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance);
 			}
 			
 			//allow for a build warning in the future 
@@ -270,23 +300,30 @@ public class BlockEventHandler implements Listener
 		//FEATURE: warn players when they're placing non-trash blocks outside of their claimed areas
 		else if(!this.trashBlocks.contains(block.getType()) && GriefPrevention.instance.claimsEnabledForWorld(block.getWorld()))
 		{
-			if(!playerData.warnedAboutBuildingOutsideClaims
+			if(!playerData.warnedAboutBuildingOutsideClaims && !player.hasPermission("griefprevention.adminclaims")
 			   && ((playerData.lastClaim == null && playerData.getClaims().size() == 0)
 			   || (playerData.lastClaim != null && playerData.lastClaim.isNear(player.getLocation(), 15))))
 			{
-				GriefPrevention.sendMessage(player, TextMode.Warn, Messages.BuildingOutsideClaims);
-				playerData.warnedAboutBuildingOutsideClaims = true;
-				
-				if(playerData.getClaims().size() < 2)
-				{
-				    GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
-				}
-				
-				if(playerData.lastClaim != null)
-				{
-				    Visualization visualization = Visualization.FromClaim(playerData.lastClaim, block.getY(), VisualizationType.Claim, player.getLocation());
-				    Visualization.Apply(player, visualization);
-				}
+				Long now = null;
+			    if(playerData.buildWarningTimestamp == null || (now = System.currentTimeMillis()) - playerData.buildWarningTimestamp > 600000)  //10 minute cooldown
+			    {
+    			    GriefPrevention.sendMessage(player, TextMode.Warn, Messages.BuildingOutsideClaims);
+    				playerData.warnedAboutBuildingOutsideClaims = true;
+    				
+    				if(now == null) now = System.currentTimeMillis();
+    				playerData.buildWarningTimestamp = now;
+    				
+    				if(playerData.getClaims().size() < 2)
+    				{
+    				    GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
+    				}
+    				
+    				if(playerData.lastClaim != null)
+    				{
+    				    Visualization visualization = Visualization.FromClaim(playerData.lastClaim, block.getY(), VisualizationType.Claim, player.getLocation());
+    				    Visualization.Apply(player, visualization);
+    				}
+			    }
 			}
 		}
 		
@@ -692,4 +729,24 @@ public class BlockEventHandler implements Listener
             }
         }
     }
+	
+	@EventHandler(ignoreCancelled = true)
+    public void onInventoryPickupItem (InventoryPickupItemEvent event)
+	{
+	    //prevent hoppers from picking-up items dropped by players on death
+
+	    InventoryHolder holder = event.getInventory().getHolder();
+	    if(holder instanceof HopperMinecart || holder instanceof Hopper)
+	    {
+	        Item item = event.getItem();
+	        List<MetadataValue> data = item.getMetadata("GP_ITEMOWNER");
+	        
+	        //if this is marked as belonging to a player
+	        if(data != null && data.size() > 0)
+	        {
+	            //don't allow the pickup
+	            event.setCancelled(true);
+	        }
+	    }
+	}
 }
