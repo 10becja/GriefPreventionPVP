@@ -1257,6 +1257,9 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.AlreadyToggled, "PvP toggled too soon, please wait.", null);
 		this.addDefault(defaults, Messages.PvpAllowed, "PvP is allowed in this claim", null);
 		this.addDefault(defaults, Messages.PvpDisabled, "PvP has been disabled for this claim", null);
+		this.addDefault(defaults, Messages.ProtectionAllowed, "This claim is now protected from all player modification", null);
+		this.addDefault(defaults, Messages.ProtectionDisabled, "Owners and builders can modify claim again", null);
+		this.addDefault(defaults, Messages.ProtectedClaim, "This claim is protected! Use /claimprotect to disable and build.", null);
 		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, go bother someone else.", "0: The claim owner");
 		this.addDefault(defaults, Messages.EjectedSuccess, "Ejected {0}", "0: The player who was ejected");
 		this.addDefault(defaults, Messages.NoPlayerFound, "Could not find a player named {0}", "0: Missing Player");

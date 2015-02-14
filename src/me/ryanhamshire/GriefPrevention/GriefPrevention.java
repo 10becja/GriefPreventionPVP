@@ -842,16 +842,20 @@ public class GriefPrevention extends JavaPlugin
 		{
 			player = (Player) sender;
 		}
+		//claimprotect
+		if(cmd.getName().equalsIgnoreCase("claimprotect"))
+		{
+			return this.enableProtection(player);
+		}
+		
 		//allowenter
 		if(cmd.getName().equalsIgnoreCase("allowenter") && player != null)
 		{
-			if(!player.hasPermission("griefprevention.eject")) return true;
 			return this.allowenterCommand(player, args);
 		}
 		//eject
 		if(cmd.getName().equalsIgnoreCase("eject") && player != null)
 		{
-			if(!player.hasPermission("griefprevention.eject")) return true;
 			return this.ejectCommand(player, args);
 		}
 		
@@ -2534,6 +2538,9 @@ public class GriefPrevention extends JavaPlugin
 		{
 			//cache the claim for later reference
 			playerData.lastClaim = claim;
+			
+			//if claim is protected, prevent anyone other than those in ignoreclaims from breaking it
+			if(claim.isProtected && claim.siegeData == null) return this.dataStore.getMessage(Messages.ProtectedClaim);
 		
 			//if not in the wilderness, then apply claim rules (permissions, etc)
 			return claim.allowBreak(player, block.getType());
@@ -2786,6 +2793,30 @@ public class GriefPrevention extends JavaPlugin
 				}
 			}
 		}
+	}
+	
+	private boolean enableProtection(Player player)
+	{
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null)
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		else
+		{
+			String noEditReason = claim.allowEdit(player);
+			if(noEditReason != null)
+			{
+				GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
+				return true;
+			}
+			
+			claim.isProtected = !claim.isProtected;
+			if(claim.isProtected)
+				GriefPrevention.sendMessage(player, TextMode.Success, Messages.ProtectionAllowed);
+			else
+				GriefPrevention.sendMessage(player, TextMode.Success, Messages.ProtectionDisabled);
+		}
+		
+		return true;
 	}
 	
 	private boolean enablePVP(final Player player)

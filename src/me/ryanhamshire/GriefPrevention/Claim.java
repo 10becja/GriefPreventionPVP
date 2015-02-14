@@ -60,6 +60,7 @@ public class Claim
 	
 	public boolean areExplosivesAllowed = false;
 	public boolean isPvpAllowed = false;
+	public boolean isProtected = false;
 	
 	//parent claim
 	//only used for claim subdivisions.  top level claims have null here

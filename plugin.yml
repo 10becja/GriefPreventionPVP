@@ -6,6 +6,10 @@ dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
 version: 10.7.0
 commands:
+   claimprotect:
+      description: Makes it so no one can break blocks in a claim
+      usage: /claimprotect
+      permission: griefprevention.claims
    allowenter:
       description: Allows a player who was ejected from a claim to enter it again.
       usage: /allowenter <player>
