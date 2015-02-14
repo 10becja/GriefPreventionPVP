@@ -987,16 +987,6 @@ public class GriefPrevention extends JavaPlugin
 		//transferclaim <player>
 		else if(cmd.getName().equalsIgnoreCase("transferclaim") && player != null)
 		{
-			//requires exactly one parameter, the other player's name
-			if(args.length != 1) return false;
-			
-			//check additional permission
-			if(!player.hasPermission("griefprevention.adminclaims"))
-			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.TransferClaimPermission);
-				return true;
-			}
-			
 			//which claim is the user in?
 			Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
 			if(claim == null)
@@ -1005,27 +995,42 @@ public class GriefPrevention extends JavaPlugin
 				return true;
 			}
 			
-			OfflinePlayer targetPlayer = this.resolvePlayerByName(args[0]);
-			if(targetPlayer == null)
+			//check additional permission for admin claims
+            if(claim.isAdminClaim() && !player.hasPermission("griefprevention.adminclaims"))
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.TransferClaimPermission);
+                return true;
+            }
+			
+			UUID newOwnerID = null;  //no argument = make an admin claim
+			String ownerName = "admin";
+			
+			if(args.length > 0)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
-				return true;
+    			OfflinePlayer targetPlayer = this.resolvePlayerByName(args[0]);
+    			if(targetPlayer == null)
+    			{
+    				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
+    				return true;
+    			}
+    			newOwnerID = targetPlayer.getUniqueId();
+    			ownerName = targetPlayer.getName();
 			}
 			
 			//change ownerhsip
 			try
 			{
-				this.dataStore.changeClaimOwner(claim, targetPlayer.getUniqueId());
+				this.dataStore.changeClaimOwner(claim, newOwnerID);
 			}
 			catch(Exception e)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.TransferTopLevel);
+			    GriefPrevention.sendMessage(player, TextMode.Instr, Messages.TransferTopLevel);
 				return true;
 			}
 			
 			//confirm
 			GriefPrevention.sendMessage(player, TextMode.Success, Messages.TransferSuccess);
-			GriefPrevention.AddLogEntry(player.getName() + " transferred a claim at " + GriefPrevention.getfriendlyLocationString(claim.getLesserBoundaryCorner()) + " to " + targetPlayer.getName() + ".");
+			GriefPrevention.AddLogEntry(player.getName() + " transferred a claim at " + GriefPrevention.getfriendlyLocationString(claim.getLesserBoundaryCorner()) + " to " + ownerName + ".");
 			
 			return true;
 		}
@@ -1614,7 +1619,7 @@ public class GriefPrevention extends JavaPlugin
 			}
 			
 			//otherwise if no permission to delve into another player's claims data
-			else if(player != null && !player.hasPermission("griefprevention.deleteclaims"))
+			else if(player != null && !player.hasPermission("griefprevention.claimslistother"))
 			{
 				GriefPrevention.sendMessage(player, TextMode.Err, Messages.ClaimsListNoPermission);
 				return true;

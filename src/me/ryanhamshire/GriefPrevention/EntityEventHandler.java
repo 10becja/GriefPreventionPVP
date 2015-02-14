@@ -738,6 +738,12 @@ class EntityEventHandler implements Listener
 			    Claim cachedClaim = null;
 				PlayerData playerData = null;
 				
+				//if not a player or an explosive, allow
+				if(attacker == null && damageSource != null && !(damageSource instanceof Projectile) && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
+				{
+				    return;
+				}
+				
 				if(attacker != null)
 				{
 					playerData = this.dataStore.getPlayerData(attacker.getUniqueId());
@@ -764,7 +770,7 @@ class EntityEventHandler implements Listener
 					if(attacker == null)
 					{
 						//exception case
-						if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Monster && claim.isAdminClaim())
+						if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Monster)
 						{
 							return;
 						}
@@ -773,6 +779,10 @@ class EntityEventHandler implements Listener
 						else
 						{
 							event.setCancelled(true);
+							if(damageSource != null && damageSource instanceof Projectile)
+							{
+							    damageSource.remove();
+							}
 						}						
 					}
 					
@@ -908,22 +918,22 @@ class EntityEventHandler implements Listener
 	    for(PotionEffect effect : effects)
 	    {
 	        PotionEffectType effectType = effect.getType();
-	        
-	        //restrict jump potions on claimed animals (griefers could use this to steal animals over fences)
-	        if(effectType == PotionEffectType.JUMP)
+	        //restrict some potions on claimed animals (griefers could use this to kill or steal animals over fences)
+	        if(effectType.getName().equals("JUMP") || effectType.getName().equals("POISON"))
 	        {
 	            for(LivingEntity effected : event.getAffectedEntities())
 	            {
 	                Claim cachedClaim = null; 
 	                if(effected instanceof Animals)
 	                {
-	                      Claim claim = this.dataStore.getClaimAt(effected.getLocation(), false, cachedClaim);
+	                    Claim claim = this.dataStore.getClaimAt(effected.getLocation(), false, cachedClaim);
 	                      if(claim != null)
 	                      {
 	                          cachedClaim = claim;
 	                          if(claim.allowContainers(thrower) != null)
 	                          {
 	                              event.setCancelled(true);
+	                              GriefPrevention.sendMessage(thrower, TextMode.Err, Messages.NoDamageClaimedEntity, claim.getOwnerName());
 	                              return;
 	                          }
 	                      }
