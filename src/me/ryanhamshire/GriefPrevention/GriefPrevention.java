@@ -1899,7 +1899,8 @@ public class GriefPrevention extends JavaPlugin
 
 			//confirmation message for attacker, warning message for defender
 			GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.SiegeAlert, attacker.getName());
-			GriefPrevention.sendMessage(player, TextMode.Success, Messages.SiegeConfirmed, defender.getName());			
+			GriefPrevention.sendMessage(player, TextMode.Success, Messages.SiegeConfirmed, defender.getName());	
+			return true;
 		}
 		else if(cmd.getName().equalsIgnoreCase("softmute"))
 		{
