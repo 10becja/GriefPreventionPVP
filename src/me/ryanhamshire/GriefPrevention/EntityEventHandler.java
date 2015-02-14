@@ -741,7 +741,9 @@ class EntityEventHandler implements Listener
 				//if not a player or an explosive, allow
 				if(attacker == null && damageSource != null && !(damageSource instanceof Projectile) && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
 				{
-				    return;
+					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
+					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))
+						return;
 				}
 				
 				if(attacker != null)
