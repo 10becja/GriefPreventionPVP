@@ -349,7 +349,7 @@ class EntityEventHandler implements Listener
 		
 		//chicken eggs and breeding could potentially make a mess in the wilderness, once griefers get involved
 		SpawnReason reason = event.getSpawnReason();
-		if(reason != SpawnReason.SPAWNER_EGG && reason != SpawnReason.BUILD_IRONGOLEM && reason != SpawnReason.BUILD_SNOWMAN)
+		if(reason != SpawnReason.SPAWNER_EGG && reason != SpawnReason.BUILD_IRONGOLEM && reason != SpawnReason.BUILD_SNOWMAN && event.getEntityType() != EntityType.ARMOR_STAND)
 		{
 			event.setCancelled(true);
 			return;
@@ -646,7 +646,7 @@ class EntityEventHandler implements Listener
     			defenderData.lastPvpPlayer = attacker.getName();
     			attackerData.lastPvpTimestamp = now;
     			attackerData.lastPvpPlayer = defender.getName();
-   			}
+			}
 		}
 		
 		//FEATURE: protect claimed animals, boats, minecarts, and items inside item frames
@@ -662,8 +662,8 @@ class EntityEventHandler implements Listener
 	        //if the damaged entity is a claimed item frame or armor stand, the damager needs to be a player with container trust in the claim
 		    if(subEvent.getEntityType() == EntityType.ITEM_FRAME
 		       || subEvent.getEntityType() == EntityType.ARMOR_STAND
-		       || subEvent.getEntityType() == EntityType.VILLAGER
-		       )
+		       || subEvent.getEntityType() == EntityType.VILLAGER)
+		    	
 		    {
 		        //decide whether it's claimed
 		        Claim cachedClaim = null;
