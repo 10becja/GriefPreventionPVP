@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -328,9 +329,8 @@ public class GriefPrevention extends JavaPlugin
 		{
 		    try
 		    {
-    		    String playerName = player.getName();
     		    UUID playerID = player.getUniqueId();
-    		    if(playerName == null || playerID == null) continue;
+    		    if(playerID == null) continue;
     		    long lastSeen = player.getLastPlayed();
     		    
     		    //if the player has been seen in the last 30 days, cache his name/UUID pair
@@ -338,7 +338,9 @@ public class GriefPrevention extends JavaPlugin
     		    long daysDiff = diff / millisecondsPerDay;
     		    if(daysDiff <= 30)
     		    {
-    		        this.playerNameToIDMap.put(playerName, playerID);
+    		        String playerName = player.getName();
+    		        if(playerName == null) continue;
+                    this.playerNameToIDMap.put(playerName, playerID);
     		        this.playerNameToIDMap.put(playerName.toLowerCase(), playerID);
     		        playersCached++;
     		    }
@@ -827,6 +829,10 @@ public class GriefPrevention extends JavaPlugin
         else if(configSetting.equalsIgnoreCase("Disabled"))
         {
             return ClaimsMode.Disabled;
+        }
+        else if(configSetting.equalsIgnoreCase("SurvivalRequiringClaims"))
+        {
+            return ClaimsMode.SurvivalRequiringClaims;
         }
         else
         {
@@ -1413,7 +1419,7 @@ public class GriefPrevention extends JavaPlugin
 			//if no amount provided, just tell player value per block sold, and how many he can sell
 			if(args.length != 1)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Info, Messages.BlockSaleValue, String.valueOf(GriefPrevention.instance.config_economy_claimBlocksSellValue), String.valueOf(availableBlocks));
+				GriefPrevention.sendMessage(player, TextMode.Info, Messages.BlockSaleValue, String.valueOf(GriefPrevention.instance.config_economy_claimBlocksSellValue), String.valueOf(Math.max(0, availableBlocks - GriefPrevention.instance.config_claims_initialBlocks)));
 				return false;
 			}
 						
@@ -1434,7 +1440,7 @@ public class GriefPrevention extends JavaPlugin
 			}
 			
 			//if he doesn't have enough blocks, tell him so
-			if(blockCount > availableBlocks)
+			if(blockCount > availableBlocks - GriefPrevention.instance.config_claims_initialBlocks)
 			{
 				GriefPrevention.sendMessage(player, TextMode.Err, Messages.NotEnoughBlocksForSale);
 			}
@@ -1642,16 +1648,19 @@ public class GriefPrevention extends JavaPlugin
 			
 			//load the target player's data
 			PlayerData playerData = this.dataStore.getPlayerData(otherPlayer.getUniqueId());
+			Vector<Claim> claims = playerData.getClaims();
 			GriefPrevention.sendMessage(player, TextMode.Instr, " " + playerData.getAccruedClaimBlocks() + " blocks from play +" + (playerData.getBonusClaimBlocks() + this.dataStore.getGroupBonusBlocks(otherPlayer.getUniqueId())) + " bonus = " + (playerData.getAccruedClaimBlocks() + playerData.getBonusClaimBlocks() + this.dataStore.getGroupBonusBlocks(otherPlayer.getUniqueId())) + " total.");
-			GriefPrevention.sendMessage(player, TextMode.Instr, "Your Claims:");
-			for(int i = 0; i < playerData.getClaims().size(); i++)
+			if(claims.size() > 0)
 			{
-				Claim claim = playerData.getClaims().get(i);
-				GriefPrevention.sendMessage(player, TextMode.Instr, getfriendlyLocationString(claim.getLesserBoundaryCorner()) + " (-" + claim.getArea() + " blocks)");
-			}
+    			GriefPrevention.sendMessage(player, TextMode.Instr, "Your Claims:");
+    			for(int i = 0; i < playerData.getClaims().size(); i++)
+    			{
+    				Claim claim = playerData.getClaims().get(i);
+    				GriefPrevention.sendMessage(player, TextMode.Instr, getfriendlyLocationString(claim.getLesserBoundaryCorner()) + " (-" + claim.getArea() + " blocks)");
+    			}
 			
-			if(playerData.getClaims().size() > 0)
 				GriefPrevention.sendMessage(player, TextMode.Instr, " = " + playerData.getRemainingClaimBlocks() + " blocks left to spend");
+			}
 			
 			//drop the data we just loaded, if the player isn't online
 			if(!otherPlayer.isOnline())
@@ -2482,7 +2491,7 @@ public class GriefPrevention extends JavaPlugin
 		if(claim == null)
 		{
 			//no building in the wilderness in creative mode
-			if(this.creativeRulesApply(location))
+			if(this.creativeRulesApply(location) || this.config_claims_worldModes.get(location.getWorld()) == ClaimsMode.SurvivalRequiringClaims)
 			{
 				String reason = this.dataStore.getMessage(Messages.NoBuildOutsideClaims);
 				if(player.hasPermission("griefprevention.ignoreclaims"))
@@ -2519,7 +2528,7 @@ public class GriefPrevention extends JavaPlugin
 		if(claim == null)
 		{
 			//no building in the wilderness in creative mode
-			if(this.creativeRulesApply(location))
+			if(this.creativeRulesApply(location) || this.config_claims_worldModes.get(location.getWorld()) == ClaimsMode.SurvivalRequiringClaims)
 			{
 				String reason = this.dataStore.getMessage(Messages.NoBuildOutsideClaims);
 				if(player.hasPermission("griefprevention.ignoreclaims"))
