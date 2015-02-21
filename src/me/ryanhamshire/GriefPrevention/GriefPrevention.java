@@ -2315,7 +2315,7 @@ public class GriefPrevention extends JavaPlugin
 	public void onDisable()
 	{ 
 		//save data for any online players
-		Player[] players = this.getServer().getOnlinePlayers();
+		Collection<Player> players = (Collection<Player>) this.getServer().getOnlinePlayers();
 		for(Player player : players)
 		{
 			UUID playerID = player.getUniqueId();

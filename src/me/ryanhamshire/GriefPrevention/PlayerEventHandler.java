@@ -449,7 +449,7 @@ class PlayerEventHandler implements Listener
 			
 			String logMessage = logMessageBuilder.toString();
 			
-			Player[] players = GriefPrevention.instance.getServer().getOnlinePlayers();
+			Collection<Player> players = (Collection<Player>) GriefPrevention.instance.getServer().getOnlinePlayers();
 			for(Player player : players)
 			{
 				if(player.hasPermission("griefprevention.eavesdrop") && !player.getName().equalsIgnoreCase(args[1]))
@@ -620,7 +620,7 @@ class PlayerEventHandler implements Listener
 						GriefPrevention.AddLogEntry("Auto-banned " + player.getName() + " because that account is using an IP address very recently used by banned player " + info.bannedAccountName + " (" + info.address.toString() + ").");
 						
 						//notify any online ops
-						Player[] players = GriefPrevention.instance.getServer().getOnlinePlayers();
+						Collection<Player> players = (Collection<Player>) GriefPrevention.instance.getServer().getOnlinePlayers();
 						for(Player otherPlayer : players)
 						{
 							if(otherPlayer.isOp())
@@ -1414,8 +1414,8 @@ class PlayerEventHandler implements Listener
 		                clickedBlockType == Material.NOTE_BLOCK || 
 		                clickedBlockType == Material.DIODE_BLOCK_ON || 
 		                clickedBlockType == Material.DIODE_BLOCK_OFF) ||
-		                clickedBlockType == Material.DAYLIGHT_DETECTOR // ||
-		                //1.8 STUFF clickedBlockType == Material.DAYLIGHT_DETECTOR_INVERTED
+		                clickedBlockType == Material.DAYLIGHT_DETECTOR ||
+		                clickedBlockType == Material.DAYLIGHT_DETECTOR_INVERTED
 		        )
 		{
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
