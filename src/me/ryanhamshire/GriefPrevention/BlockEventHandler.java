@@ -472,7 +472,8 @@ public class BlockEventHandler implements Listener
 	public void onBlockPistonRetract (BlockPistonRetractEvent event)
 	{
 	    //we only care about sticky pistons retracting
-		if(!event.isSticky()) return;
+		//BECJA NOTE: this seems to not work. apparently EVERY piston is not sticky in 1.8...
+		//if(!event.isSticky()) return; 
 		
 		//pulling up is always safe
 		if(event.getDirection() == BlockFace.UP) return;
@@ -482,7 +483,7 @@ public class BlockEventHandler implements Listener
 		
 		//don't track in worlds where claims are not enabled
         if(!GriefPrevention.instance.claimsEnabledForWorld(event.getBlock().getWorld())) return;
-		
+        
 		//if pistons limited to only pulling blocks which are in the same claim the piston is in
 		if(GriefPrevention.instance.config_pistonsInClaimsOnly)
 		{
@@ -493,12 +494,15 @@ public class BlockEventHandler implements Listener
 		        event.setCancelled(true);
 		        return;
 		    }
-		    
-		    //if pulled block isn't in the same land claim, cancel the event
-		    if(!pistonClaim.contains(event.getRetractLocation(), false, false))
+		    List<Block> movedBlocks = event.getBlocks();
+		    for(Block check : movedBlocks)
 		    {
-		        event.setCancelled(true);
-		        return;
+			    //if pulled block isn't in the same land claim, cancel the event
+			    if(!pistonClaim.contains(check.getLocation(), false, false))
+			    {
+			        event.setCancelled(true);
+			        return;
+			    }
 		    }
 		}
 		
