@@ -914,6 +914,22 @@ class PlayerEventHandler implements Listener
 			return;
 		}
 	}
+	
+	//when a player interacts with an ArmorStand. Only way to make it work
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+	public void onPlayerInteractArmorStand(PlayerArmorStandManipulateEvent event)
+	{
+		Player player = event.getPlayer();
+		Entity entity = event.getRightClicked();
+		//dunno if ryan's coded logic for ArmorStand in the build reason, so just check for item frame
+		String noBuildReason = GriefPrevention.instance.allowBuild(player, entity.getLocation(), Material.ITEM_FRAME); 
+		if(noBuildReason != null)
+		{
+			GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
+			event.setCancelled(true);
+			return;
+		}
+	}
  
 	//when a player interacts with an entity...
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
