@@ -1364,12 +1364,12 @@ class PlayerEventHandler implements Listener
 		else if( clickedBlock != null && 
 		        
 		        (GriefPrevention.instance.config_claims_lockWoodenDoors && (
-	                        clickedBlockType == Material.WOODEN_DOOR   ||
-	                        clickedBlockType == Material.ACACIA_DOOR   || 		
-	                        clickedBlockType == Material.BIRCH_DOOR    ||		
-	                        clickedBlockType == Material.JUNGLE_DOOR   ||		
-	                        clickedBlockType == Material.SPRUCE_DOOR   ||		
-	                        clickedBlockType == Material.DARK_OAK_DOOR)) ||
+                        clickedBlockType == Material.WOODEN_DOOR   ||
+                        clickedBlockType == Material.ACACIA_DOOR   || 
+                        clickedBlockType == Material.BIRCH_DOOR    ||
+                        clickedBlockType == Material.JUNGLE_DOOR   ||
+                        clickedBlockType == Material.SPRUCE_DOOR   ||
+                        clickedBlockType == Material.DARK_OAK_DOOR)) ||
 		        
                 (GriefPrevention.instance.config_claims_preventButtonsSwitches && clickedBlockType == Material.BED_BLOCK) ||
 		        
@@ -1377,12 +1377,12 @@ class PlayerEventHandler implements Listener
 		                    clickedBlockType == Material.TRAP_DOOR)) ||
 				
                 (GriefPrevention.instance.config_claims_lockFenceGates && (
-    				        clickedBlockType == Material.FENCE_GATE          ||
-    				        clickedBlockType == Material.ACACIA_FENCE_GATE   || 		
-    				        clickedBlockType == Material.BIRCH_FENCE_GATE    ||		
-    				        clickedBlockType == Material.JUNGLE_FENCE_GATE   ||		
-    				        clickedBlockType == Material.SPRUCE_FENCE_GATE   ||		
-    				        clickedBlockType == Material.DARK_OAK_FENCE_GATE)))
+				        clickedBlockType == Material.FENCE_GATE          ||
+				        clickedBlockType == Material.ACACIA_FENCE_GATE   || 
+                        clickedBlockType == Material.BIRCH_FENCE_GATE    ||
+                        clickedBlockType == Material.JUNGLE_FENCE_GATE   ||
+                        clickedBlockType == Material.SPRUCE_FENCE_GATE   ||
+                        clickedBlockType == Material.DARK_OAK_FENCE_GATE)))
 		{
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
