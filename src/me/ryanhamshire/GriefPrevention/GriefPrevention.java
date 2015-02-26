@@ -1855,6 +1855,13 @@ public class GriefPrevention extends JavaPlugin
 				return false;
 			}
 			
+			//don't siege yourself dummy
+			if(attacker == defender)
+			{
+				GriefPrevention.sendMessage(player, TextMode.Err, "Placing yourself in siege is rather pointless");
+				return true;
+			}
+			
 			//victim must not be under siege already
 			PlayerData defenderData = this.dataStore.getPlayerData(defender.getUniqueId());
 			if(defenderData.siegeData != null)
