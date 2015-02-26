@@ -469,23 +469,51 @@ class PlayerEventHandler implements Listener
 		}
 		
 		//if anti spam enabled, check for spam
-		if(!GriefPrevention.instance.config_spam_enabled) return;
+		if(GriefPrevention.instance.config_spam_enabled)
+		{
+    		//if the slash command used is in the list of monitored commands, treat it like a chat message (see above)
+    		boolean isMonitoredCommand = false;
+    		for(String monitoredCommand : GriefPrevention.instance.config_spam_monitorSlashCommands)
+    		{
+    			if(args[0].equalsIgnoreCase(monitoredCommand))
+    			{
+    				isMonitoredCommand = true;
+    				break;
+    			}
+    		}
+    		
+    		if(isMonitoredCommand)
+    		{
+    			event.setCancelled(this.handlePlayerChat(event.getPlayer(), event.getMessage(), event));		
+    		}
+		}
 		
-		//if the slash command used is in the list of monitored commands, treat it like a chat message (see above)
+		//if requires access trust, check for permission
 		boolean isMonitoredCommand = false;
-		for(String monitoredCommand : GriefPrevention.instance.config_spam_monitorSlashCommands)
-		{
-			if(args[0].equalsIgnoreCase(monitoredCommand))
-			{
-				isMonitoredCommand = true;
-				break;
-			}
-		}
-		
-		if(isMonitoredCommand)
-		{
-			event.setCancelled(this.handlePlayerChat(event.getPlayer(), event.getMessage(), event));		
-		}
+        for(String monitoredCommand : GriefPrevention.instance.config_claims_commandsRequiringAccessTrust)
+        {
+            if(args[0].equalsIgnoreCase(monitoredCommand))
+            {
+                isMonitoredCommand = true;
+                break;
+            }
+        }
+        
+        if(isMonitoredCommand)
+        {
+            Player player = event.getPlayer();
+            Claim claim = this.dataStore.getClaimAt(player.getLocation(), false, playerData.lastClaim);
+            if(claim != null)
+            {
+                playerData.lastClaim = claim;
+                String reason = claim.allowAccess(player); 
+                if(reason != null)
+                {
+                    GriefPrevention.sendMessage(player, TextMode.Err, reason);
+                    event.setCancelled(true);
+                }
+            }
+        }
 	}
 	
 	private ConcurrentHashMap<UUID, Date> lastLoginThisServerSessionMap = new ConcurrentHashMap<UUID, Date>();
@@ -647,7 +675,7 @@ class PlayerEventHandler implements Listener
 	}
 	
 	//when a player spawns, conditionally apply temporary pvp protection 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     void onPlayerRespawn (PlayerRespawnEvent event)
     {
         Player player = event.getPlayer();
@@ -1120,6 +1148,8 @@ class PlayerEventHandler implements Listener
 		                GriefPrevention.sendMessage(player, TextMode.Err, Messages.PickupBlockedExplanation, ownerName);
 		                playerData.receivedDropUnlockAdvertisement = true;
 		            }
+		            
+		            return;
 		        }
 		    }
 		}
