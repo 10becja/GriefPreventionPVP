@@ -941,6 +941,18 @@ class PlayerEventHandler implements Listener
 			event.setCancelled(true);
 			return;
 		}
+		
+		//Don't allow player to teleport to claims they aren't allowed in
+		if(destinationClaim == null)
+			return;
+		String nameID = player.getName() + String.valueOf(destinationClaim.getID());
+		if(GriefPrevention.getBlocked().contains(nameID))
+		{
+			GriefPrevention.sendMessage(player, TextMode.Err, "You have been recently ejected from this claim. "
+					+ "You must wait before entering again");
+			event.setTo(event.getFrom());
+			event.setCancelled(true);
+		}
 	}
 	
 	//when a player interacts with an ArmorStand. Only way to make it work
