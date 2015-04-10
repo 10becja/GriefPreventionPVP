@@ -2959,6 +2959,7 @@ public class GriefPrevention extends JavaPlugin
 					public void run()
 					{
 						claim.isPvpAllowed = !claim.isPvpAllowed;
+						dataStore.saveClaim(claim);
 						toggled.remove(toggled.indexOf(claim));
 						for(Player p : inside) //let everyone that was in the claim, know that it's been updated
 						{

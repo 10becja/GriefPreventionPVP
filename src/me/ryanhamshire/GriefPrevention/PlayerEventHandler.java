@@ -2027,7 +2027,7 @@ class PlayerEventHandler implements Listener
 					Claim newClaim = new Claim(
 							new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx1, newy1, newz1), 
 							new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx2, newy2, newz2),
-							null, new String[]{}, new String[]{}, new String[]{}, new String[]{}, null);
+							null, new String[]{}, new String[]{}, new String[]{}, new String[]{}, null, false);
 					
 					//if the new claim is smaller
 					if(!newClaim.contains(oldClaim.getLesserBoundaryCorner(), true, false) || !newClaim.contains(oldClaim.getGreaterBoundaryCorner(), true, false))
@@ -2250,7 +2250,7 @@ class PlayerEventHandler implements Listener
 				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ClaimStart);
 				
 				//show him where he's working
-				Visualization visualization = Visualization.FromClaim(new Claim(clickedBlock.getLocation(), clickedBlock.getLocation(), null, new String[]{}, new String[]{}, new String[]{}, new String[]{}, null), clickedBlock.getY(), VisualizationType.RestoreNature, player.getLocation());
+				Visualization visualization = Visualization.FromClaim(new Claim(clickedBlock.getLocation(), clickedBlock.getLocation(), null, new String[]{}, new String[]{}, new String[]{}, new String[]{}, null, false), clickedBlock.getY(), VisualizationType.RestoreNature, player.getLocation());
 				Visualization.Apply(player, visualization);
 			}
 			

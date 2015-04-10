@@ -112,7 +112,7 @@ class RestoreNatureExecutionTask implements Runnable
 		//show visualization to player who started the restoration
 		if(player != null)
 		{
-			Claim claim = new Claim(lesserCorner, greaterCorner, null, new String[] {}, new String[] {}, new String[] {}, new String[] {}, null);
+			Claim claim = new Claim(lesserCorner, greaterCorner, null, new String[] {}, new String[] {}, new String[] {}, new String[] {}, null, false);
 			Visualization visualization = Visualization.FromClaim(claim, player.getLocation().getBlockY(), VisualizationType.RestoreNature, player.getLocation());
 			Visualization.Apply(player, visualization);
 		}

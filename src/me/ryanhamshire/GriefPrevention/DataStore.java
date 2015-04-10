@@ -684,7 +684,7 @@ public abstract class DataStore
 			new String [] {},
 			new String [] {},
 			new String [] {},
-			id);
+			id, false);
 		
 		newClaim.parent = parent;
 		

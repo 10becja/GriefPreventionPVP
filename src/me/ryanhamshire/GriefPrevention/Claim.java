@@ -188,10 +188,12 @@ public class Claim
 	}
 	
 	//main constructor.  note that only creating a claim instance does nothing - a claim must be added to the data store to be effective
-	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, String [] builderIDs, String [] containerIds, String [] accessorIDs, String [] managerIDs, Long id)
+	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, String [] builderIDs, String [] containerIds, String [] accessorIDs, String [] managerIDs, Long id, Boolean isPvpAllowed)
 	{
 		//modification date
 		this.modifiedDate = Calendar.getInstance().getTime();
+		
+		this.isPvpAllowed = isPvpAllowed;
 		
 		//id
 		this.id = id;
@@ -266,7 +268,7 @@ public class Claim
 		Claim claim = new Claim
 			(new Location(this.lesserBoundaryCorner.getWorld(), this.lesserBoundaryCorner.getBlockX() - howNear, this.lesserBoundaryCorner.getBlockY(), this.lesserBoundaryCorner.getBlockZ() - howNear),
 			 new Location(this.greaterBoundaryCorner.getWorld(), this.greaterBoundaryCorner.getBlockX() + howNear, this.greaterBoundaryCorner.getBlockY(), this.greaterBoundaryCorner.getBlockZ() + howNear),
-			 null, new String[] {}, new String[] {}, new String[] {}, new String[] {}, null);
+			 null, new String[] {}, new String[] {}, new String[] {}, new String[] {}, null, false);
 		
 		return claim.contains(location, false, true);
 	}
