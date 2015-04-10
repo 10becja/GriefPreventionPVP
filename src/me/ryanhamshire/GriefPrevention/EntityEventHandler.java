@@ -641,6 +641,12 @@ class EntityEventHandler implements Listener
     			//FEATURE: prevent players who very recently participated in pvp combat from hiding inventory to protect it from looting
     			//FEATURE: prevent players who are in pvp combat from logging out to avoid being defeated
     			
+    			//warn both attacker and defender, but only if they aren't already in combat
+    			if(!(defenderData.inPvpCombat()) && defender != null)
+    				GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.CombatTagged, GriefPrevention.instance.config_pvp_combatTimeoutSeconds);
+    			if(!(attackerData.inPvpCombat()) && attacker != null)
+    				GriefPrevention.sendMessage(attacker, TextMode.Warn, Messages.CombatTagged, GriefPrevention.instance.config_pvp_combatTimeoutSeconds);
+    			
     			long now = Calendar.getInstance().getTimeInMillis();
     			defenderData.lastPvpTimestamp = now;
     			defenderData.lastPvpPlayer = attacker.getName();
