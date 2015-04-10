@@ -18,6 +18,7 @@
 
 package me.ryanhamshire.GriefPrevention;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -194,7 +195,7 @@ class PlayerEventHandler implements Listener
 		if(player.hasPermission("griefprevention.spam")) return false;
 		
 		boolean spam = false;
-		boolean muted = false;
+		String mutedReason = null;
 		
 		//prevent bots from chatting - require movement before talking for any newish players
         PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
@@ -206,7 +207,7 @@ class PlayerEventHandler implements Listener
             {
                 GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoChatUntilMove, 10L);
                 spam = true;
-                muted = true;
+                mutedReason = "pre-movement chat";
             }
             else
             {
@@ -226,11 +227,11 @@ class PlayerEventHandler implements Listener
 		
 		//always mute an exact match to the last chat message
 		long now = new Date().getTime();
-		if(message.equals(this.lastChatMessage) && now - this.lastChatMessageTimestamp < 750)
+		if(mutedReason != null && message.equals(this.lastChatMessage) && now - this.lastChatMessageTimestamp < 750)
 		{
 		    playerData.spamCount += ++this.duplicateMessageCount;
 		    spam = true;
-		    muted = true;
+		    mutedReason = "repeat message";
 		}
 		else
 		{
@@ -254,40 +255,29 @@ class PlayerEventHandler implements Listener
 		}
 		
 		//if it's very similar to the last message from the same player and within 10 seconds of that message
-		if(!muted && this.stringsAreSimilar(message, playerData.lastMessage) && now - playerData.lastMessageTimestamp.getTime() < 10000)
+		if(mutedReason == null && this.stringsAreSimilar(message, playerData.lastMessage) && now - playerData.lastMessageTimestamp.getTime() < 10000)
 		{
 			playerData.spamCount++;
 			spam = true;
-			muted = true;
+			mutedReason = "similar message";
 		}
 		
 		//filter IP addresses
-		if(!muted)
+		if(mutedReason == null)
 		{
-			Pattern ipAddressPattern = Pattern.compile("([0-9]{1,3}\\.){3}[0-9]{1,3}");
-			Matcher matcher = ipAddressPattern.matcher(message);
-			
-			//if it looks like an IP address
-			if(matcher.find())
+			if(GriefPrevention.instance.containsBlockedIP(message))
 			{
-				//and it's not in the list of allowed IP addresses
-				if(!GriefPrevention.instance.config_spam_allowedIpAddresses.contains(matcher.group()))
-				{
-					//log entry
-					GriefPrevention.AddLogEntry("Muted IP address from " + player.getName() + ": " + message);
-					
-					//spam notation
-					playerData.spamCount++;
-					spam = true;
-					
-					//block message
-					muted = true;
-				}
+				//spam notation
+				playerData.spamCount+=5;
+				spam = true;
+				
+				//block message
+				mutedReason = "IP address";
 			}
 		}
 		
 		//if the message was mostly non-alpha-numerics or doesn't include much whitespace, consider it a spam (probably ansi art or random text gibberish) 
-		if(!muted && message.length() > 5)
+		if(mutedReason == null && message.length() > 5)
 		{
 			int symbolsCount = 0;
 			int whitespaceCount = 0;
@@ -308,13 +298,13 @@ class PlayerEventHandler implements Listener
 			if(symbolsCount > message.length() / 2 || (message.length() > 15 && whitespaceCount < message.length() / 10))
 			{
 				spam = true;
-				if(playerData.spamCount > 0) muted = true;
+				if(playerData.spamCount > 0) mutedReason = "gibberish";
 				playerData.spamCount++;
 			}
 		}
 		
 		//very short messages close together are spam
-		if(!muted && message.length() < 5 && millisecondsSinceLastMessage < 3000)
+		if(mutedReason == null && message.length() < 5 && millisecondsSinceLastMessage < 3000)
 		{
 			spam = true;
 			playerData.spamCount++;
@@ -352,7 +342,10 @@ class PlayerEventHandler implements Listener
 			//anything above level 2, mute and warn
 			if(playerData.spamCount >= 4)
 			{
-				muted = true;
+				if(mutedReason == null)
+				{
+				    mutedReason = "too-frequent text";
+				}
 				if(!playerData.spamWarned)
 				{
 					GriefPrevention.sendMessage(player, TextMode.Warn, GriefPrevention.instance.config_spam_warningMessage, 10L);
@@ -361,10 +354,10 @@ class PlayerEventHandler implements Listener
 				}
 			}
 			
-			if(muted)
+			if(mutedReason != null)
 			{
 				//make a log entry
-				GriefPrevention.AddLogEntry("Muted spam from " + player.getName() + ": " + message);
+				GriefPrevention.AddLogEntry("Muted " + mutedReason + ".");
 				
 				//cancelling the event guarantees other players don't receive the message
 				return true;
@@ -1131,7 +1124,7 @@ class PlayerEventHandler implements Listener
 	public void onPlayerPickupItem(PlayerPickupItemEvent event)
 	{
 		Player player = event.getPlayer();
-		
+
 		//FEATURE: lock dropped items to player who dropped them
 		
 		//who owns this stack?
@@ -1225,6 +1218,8 @@ class PlayerEventHandler implements Listener
 	}
 	
 	//block use of buckets within other players' claims
+	private HashSet<Material> commonAdjacentBlocks_water = new HashSet<Material>(Arrays.asList(Material.WATER, Material.STATIONARY_WATER, Material.SOIL, Material.DIRT, Material.STONE));
+	private HashSet<Material> commonAdjacentBlocks_lava = new HashSet<Material>(Arrays.asList(Material.LAVA, Material.STATIONARY_LAVA, Material.DIRT, Material.STONE));
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onPlayerBucketEmpty (PlayerBucketEmptyEvent bucketEvent)
 	{
@@ -1284,6 +1279,34 @@ class PlayerEventHandler implements Listener
 				}
 			}
 		}
+		
+		//log any suspicious placements (check sea level, world type, and adjacent blocks)
+		if(block.getY() >= GriefPrevention.instance.getSeaLevel(block.getWorld()) - 5 && !player.hasPermission("griefprevention.lava") && block.getWorld().getEnvironment() != Environment.NETHER)
+		{
+		    //if certain blocks are nearby, it's less suspicious and not worth logging
+		    HashSet<Material> exclusionAdjacentTypes;
+		    if(bucketEvent.getBucket() == Material.WATER_BUCKET)
+		        exclusionAdjacentTypes = this.commonAdjacentBlocks_water;
+		    else
+		        exclusionAdjacentTypes = this.commonAdjacentBlocks_lava;
+		    
+		    boolean makeLogEntry = true;
+		    BlockFace [] adjacentDirections = new BlockFace[] {BlockFace.EAST, BlockFace.WEST, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.DOWN};
+		    for(BlockFace direction : adjacentDirections)
+		    {
+		        Material adjacentBlockType = block.getRelative(direction).getType();
+		        if(exclusionAdjacentTypes.contains(adjacentBlockType))
+	            {
+		            makeLogEntry = false;
+		            break;
+	            }
+		    }
+		    
+		    if(makeLogEntry)
+	        {
+	            GriefPrevention.AddLogEntry(player.getName() + " placed suspicious " + bucketEvent.getBucket().name() + " @ " + GriefPrevention.getfriendlyLocationString(block.getLocation()));
+	        }
+		}
 	}
 	
 	//see above
@@ -1317,7 +1340,7 @@ class PlayerEventHandler implements Listener
 	    Action action = event.getAction();
 	    if(action == Action.LEFT_CLICK_AIR) return;
 	    if(action == Action.PHYSICAL) return;
-        
+	    
 	    Player player = event.getPlayer();
 		Block clickedBlock = event.getClickedBlock(); //null returned here means interacting with air
 		
@@ -1374,6 +1397,7 @@ class PlayerEventHandler implements Listener
 						clickedBlockType == Material.JUKEBOX ||
 						clickedBlockType == Material.ANVIL ||
 						clickedBlockType == Material.JUKEBOX ||
+						clickedBlockType == Material.CAKE_BLOCK ||
 						GriefPrevention.instance.config_mods_containerTrustIds.Contains(new MaterialInfo(clickedBlock.getTypeId(), clickedBlock.getData(), null)))))
 		{			
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
@@ -1477,15 +1501,35 @@ class PlayerEventHandler implements Listener
 			}			
 		}
 		
+		//otherwise apply rule for cake
+        else if(clickedBlock != null && GriefPrevention.instance.config_claims_preventTheft && clickedBlockType == Material.CAKE_BLOCK)
+        {
+            if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
+            Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
+            if(claim != null)
+            {
+                playerData.lastClaim = claim;
+                
+                String noContainerReason = claim.allowAccess(player);
+                if(noContainerReason != null)
+                {
+                    event.setCancelled(true);
+                    GriefPrevention.sendMessage(player, TextMode.Err, noContainerReason);
+                    return;
+                }
+            }           
+        }
+		
 		//apply rule for note blocks and repeaters and daylight sensors
 		else if(clickedBlock != null && 
 		        (
 		                clickedBlockType == Material.NOTE_BLOCK || 
 		                clickedBlockType == Material.DIODE_BLOCK_ON || 
-		                clickedBlockType == Material.DIODE_BLOCK_OFF) ||
+		                clickedBlockType == Material.DIODE_BLOCK_OFF ||
+		                clickedBlockType == Material.DRAGON_EGG ||
 		                clickedBlockType == Material.DAYLIGHT_DETECTOR ||
 		                clickedBlockType == Material.DAYLIGHT_DETECTOR_INVERTED
-		        )
+		        ))
 		{
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
@@ -1511,8 +1555,8 @@ class PlayerEventHandler implements Listener
 			ItemStack itemInHand = player.getItemInHand();
 			Material materialInHand = itemInHand.getType();		
 			
-			//if it's bonemeal or armor stand, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
-			if(clickedBlock != null && (materialInHand == Material.INK_SACK || materialInHand == Material.ARMOR_STAND ||
+			//if it's bonemeal or armor stand or spawn egg, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
+			if(clickedBlock != null && (materialInHand == Material.INK_SACK || materialInHand == Material.ARMOR_STAND || materialInHand == Material.MONSTER_EGG ||
 					(materialInHand == Material.FLINT_AND_STEEL && clickedBlockType == Material.TNT)))
 			{
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), clickedBlockType);
@@ -1543,7 +1587,7 @@ class PlayerEventHandler implements Listener
 			}
 			
 			//if it's a spawn egg, minecart, or boat, and this is a creative world, apply special rules
-			else if(clickedBlock != null && (materialInHand == Material.MONSTER_EGG || materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.BOAT) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
+			else if(clickedBlock != null && (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.BOAT) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
 			{
 				//player needs build permission at this location
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), Material.MINECART);
@@ -2344,6 +2388,8 @@ class PlayerEventHandler implements Listener
             case LEVER:
             case DIODE_BLOCK_ON:  //redstone repeater
             case DIODE_BLOCK_OFF:
+            case CAKE_BLOCK:
+            case DRAGON_EGG:
                 return true;
             default:
                 return false;

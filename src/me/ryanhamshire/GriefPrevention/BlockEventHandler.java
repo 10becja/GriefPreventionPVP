@@ -112,17 +112,27 @@ public class BlockEventHandler implements Listener
 		for(int i = 0; i < event.getLines().length; i++)
 		{
 			String withoutSpaces = event.getLine(i).replace(" ", ""); 
-		    if(!withoutSpaces.isEmpty()) notEmpty = true;
-			lines.append("\n  " + event.getLine(i));
+		    if(!withoutSpaces.isEmpty())
+	        {
+		        notEmpty = true;
+		        lines.append("\n  " + event.getLine(i));
+	        }
 		}
 		
 		String signMessage = lines.toString();
+		
+		//prevent signs with blocked IP addresses 
+		if(!player.hasPermission("griefprevention.spam") && GriefPrevention.instance.containsBlockedIP(signMessage))
+        {
+            event.setCancelled(true);
+            return;
+        }
 		
 		//if not empty and wasn't the same as the last sign, log it and remember it for later
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		if(notEmpty && playerData.lastMessage != null && !playerData.lastMessage.equals(signMessage))
 		{		
-			GriefPrevention.AddLogEntry("[Sign Placement] <" + player.getName() + "> " + " @ " + GriefPrevention.getfriendlyLocationString(event.getBlock().getLocation()) + lines.toString());
+			GriefPrevention.AddLogEntry("[Sign Placement] <" + player.getName() + "> " + " @ " + GriefPrevention.getfriendlyLocationString(event.getBlock().getLocation()) + ": " + lines.toString().replace("\n  ", ";"));
 			playerData.lastMessage = signMessage;
 			
 			if(!player.hasPermission("griefprevention.eavesdrop"))
@@ -471,61 +481,64 @@ public class BlockEventHandler implements Listener
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onBlockPistonRetract (BlockPistonRetractEvent event)
 	{
-	    //we only care about sticky pistons retracting
-		//BECJA NOTE: this seems to not work. apparently EVERY piston is not sticky in 1.8...
-		//if(!event.isSticky()) return; 
-		
 		//pulling up is always safe
 		if(event.getDirection() == BlockFace.UP) return;
 		
-		//if pulling "air", always safe
-		if(event.getRetractLocation().getBlock().getType() == Material.AIR) return;
-		
-		//don't track in worlds where claims are not enabled
-        if(!GriefPrevention.instance.claimsEnabledForWorld(event.getBlock().getWorld())) return;
-        
-		//if pistons limited to only pulling blocks which are in the same claim the piston is in
-		if(GriefPrevention.instance.config_pistonsInClaimsOnly)
+		try
 		{
-		    //if piston not in a land claim, cancel event
-		    Claim pistonClaim = this.dataStore.getClaimAt(event.getBlock().getLocation(), false, null);
-		    if(pistonClaim == null)
-		    {
-		        event.setCancelled(true);
-		        return;
-		    }
-		    List<Block> movedBlocks = event.getBlocks();
-		    for(Block check : movedBlocks)
-		    {
-			    //if pulled block isn't in the same land claim, cancel the event
-			    if(!pistonClaim.contains(check.getLocation(), false, false))
-			    {
-			        event.setCancelled(true);
-			        return;
-			    }
-		    }
-		}
-		
-		//otherwise, consider ownership of both piston and block
-		else
-		{
-    		//who owns the moving block, if anyone?
-    		String movingBlockOwnerName = "_";
-    		Claim movingBlockClaim = this.dataStore.getClaimAt(event.getRetractLocation(), false, null);
-    		if(movingBlockClaim != null) movingBlockOwnerName = movingBlockClaim.getOwnerName();
+    		//don't track in worlds where claims are not enabled
+            if(!GriefPrevention.instance.claimsEnabledForWorld(event.getBlock().getWorld())) return;
     		
-    		//who owns the piston, if anyone?
-    		String pistonOwnerName = "_";
-    		Location pistonLocation = event.getBlock().getLocation();		
-    		Claim pistonClaim = this.dataStore.getClaimAt(pistonLocation, false, movingBlockClaim);
-    		if(pistonClaim != null) pistonOwnerName = pistonClaim.getOwnerName();
-    		
-    		//if there are owners for the blocks, they must be the same player
-    		//otherwise cancel the event
-    		if(!pistonOwnerName.equals(movingBlockOwnerName))
+    		//if pistons limited to only pulling blocks which are in the same claim the piston is in
+    		if(GriefPrevention.instance.config_pistonsInClaimsOnly)
     		{
-    			event.setCancelled(true);
+    		    //if piston not in a land claim, cancel event
+    		    Claim pistonClaim = this.dataStore.getClaimAt(event.getBlock().getLocation(), false, null);
+    		    if(pistonClaim == null)
+    		    {
+    		        event.setCancelled(true);
+    		        return;
+    		    }
+    		    
+    		    for(Block movedBlock : event.getBlocks())
+    		    {
+    		        //if pulled block isn't in the same land claim, cancel the event
+        		    if(!pistonClaim.contains(movedBlock.getLocation(), false, false))
+        		    {
+        		        event.setCancelled(true);
+        		        return;
+        		    }
+    		    }
     		}
+    		
+    		//otherwise, consider ownership of both piston and block
+    		else
+    		{
+    		    //who owns the piston, if anyone?
+                String pistonOwnerName = "_";
+                Location pistonLocation = event.getBlock().getLocation();       
+                Claim pistonClaim = this.dataStore.getClaimAt(pistonLocation, false, null);
+                if(pistonClaim != null) pistonOwnerName = pistonClaim.getOwnerName();
+    		    
+    		    String movingBlockOwnerName = "_";
+        		for(Block movedBlock : event.getBlocks())
+        		{
+        		    //who owns the moving block, if anyone?
+                    Claim movingBlockClaim = this.dataStore.getClaimAt(movedBlock.getLocation(), false, pistonClaim);
+            		if(movingBlockClaim != null) movingBlockOwnerName = movingBlockClaim.getOwnerName();
+            		
+            		//if there are owners for the blocks, they must be the same player
+            		//otherwise cancel the event
+            		if(!pistonOwnerName.equals(movingBlockOwnerName))
+            		{
+            			event.setCancelled(true);
+            		}
+        		}
+    		}
+		}
+		catch(NoSuchMethodError exception)
+		{
+		    GriefPrevention.AddLogEntry("Your server is running an outdated version of 1.8 which has a griefing vulnerability.  Update your server (reruns buildtools.jar to get an updated server JAR file) to ensure playres can't steal claimed blocks using pistons.");
 		}
 	}
 	

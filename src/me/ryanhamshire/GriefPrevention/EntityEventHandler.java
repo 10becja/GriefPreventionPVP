@@ -52,6 +52,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityBreakDoorEvent;
@@ -215,65 +216,87 @@ class EntityEventHandler implements Listener
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onEntityExplode(EntityExplodeEvent explodeEvent)
 	{		
-		List<Block> blocks = explodeEvent.blockList();
-		Location location = explodeEvent.getLocation();
-		
-		//FEATURE: explosions don't destroy blocks when they explode near or above sea level in standard worlds
-		boolean isCreeper = (explodeEvent.getEntity() != null && explodeEvent.getEntity() instanceof Creeper);
-		
-		//exception for some land claims in survival worlds, see notes below
-		Claim originationClaim = null;
-		if(!GriefPrevention.instance.creativeRulesApply(location))
-        {
-		    originationClaim = GriefPrevention.instance.dataStore.getClaimAt(location, false, null);
-        }
-		
-		if( location.getWorld().getEnvironment() == Environment.NORMAL && GriefPrevention.instance.claimsEnabledForWorld(location.getWorld()) && ((isCreeper && GriefPrevention.instance.config_blockSurfaceCreeperExplosions) || (!isCreeper && GriefPrevention.instance.config_blockSurfaceOtherExplosions)))			
-		{
-			for(int i = 0; i < blocks.size(); i++)
-			{
-				Block block = blocks.get(i);
-				if(GriefPrevention.instance.config_mods_explodableIds.Contains(new MaterialInfo(block.getTypeId(), block.getData(), null))) continue;
-				
-				//in survival worlds, if claim explosions are enabled for the source claim, allow non-creeper explosions to destroy blocks in and under that claim even above sea level. 
-				if(!isCreeper && originationClaim != null && originationClaim.areExplosivesAllowed && originationClaim.contains(block.getLocation(), true, false)) continue;
-				
-				if(block.getLocation().getBlockY() > GriefPrevention.instance.getSeaLevel(location.getWorld()) - 7)
-				{
-					blocks.remove(i--);
-				}
-			}			
-		}
-		
-		//special rule for creative worlds: explosions don't destroy anything
-		if(GriefPrevention.instance.creativeRulesApply(explodeEvent.getLocation()))
-		{
-			for(int i = 0; i < blocks.size(); i++)
-			{
-				Block block = blocks.get(i);
-				if(GriefPrevention.instance.config_mods_explodableIds.Contains(new MaterialInfo(block.getTypeId(), block.getData(), null))) continue;
-				
-				blocks.remove(i--);
-			}
-		}
-		
-		//FEATURE: explosions don't damage claimed blocks	
-		Claim claim = null;
-		for(int i = 0; i < blocks.size(); i++)  //for each destroyed block
-		{
-			Block block = blocks.get(i);
-			if(block.getType() == Material.AIR) continue;  //if it's air, we don't care
-			
-			if(GriefPrevention.instance.config_mods_explodableIds.Contains(new MaterialInfo(block.getTypeId(), block.getData(), null))) continue;
-			
-			claim = this.dataStore.getClaimAt(block.getLocation(), false, claim); 
-			//if the block is claimed, remove it from the list of destroyed blocks
-			if(claim != null && !claim.areExplosivesAllowed)
-			{
-				blocks.remove(i--);
-			}
-		}
+		this.handleExplosion(explodeEvent.getLocation(), explodeEvent.getEntity(), explodeEvent.blockList());
 	}
+	
+	//when a block explodes...
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+    public void onBlockExplode(BlockExplodeEvent explodeEvent)
+    {       
+        this.handleExplosion(explodeEvent.getBlock().getLocation(), null, explodeEvent.blockList());
+    }
+    
+    void handleExplosion(Location location, Entity entity, List<Block> blocks)
+    {
+        //only applies to claims-enabled worlds
+        World world = location.getWorld();
+        
+        if(!GriefPrevention.instance.claimsEnabledForWorld(world)) return;
+        
+        //FEATURE: explosions don't destroy surface blocks by default
+        boolean isCreeper = (entity != null && entity instanceof Creeper);
+        
+        boolean applySurfaceRules = world.getEnvironment() == Environment.NORMAL && ((isCreeper && GriefPrevention.instance.config_blockSurfaceCreeperExplosions) || (!isCreeper && GriefPrevention.instance.config_blockSurfaceOtherExplosions));
+        
+        //special rule for creative worlds: explosions don't destroy anything
+        if(GriefPrevention.instance.creativeRulesApply(location))
+        {
+            for(int i = 0; i < blocks.size(); i++)
+            {
+                Block block = blocks.get(i);
+                if(GriefPrevention.instance.config_mods_explodableIds.Contains(new MaterialInfo(block.getTypeId(), block.getData(), null))) continue;
+                
+                blocks.remove(i--);
+            }
+            
+            return;
+        }
+        
+        //make a list of blocks which were allowed to explode
+        List<Block> explodedBlocks = new ArrayList<Block>();
+        Claim cachedClaim = null;
+        for(int i = 0; i < blocks.size(); i++)
+        {
+            Block block = blocks.get(i);
+            
+            //always ignore air blocks
+            if(block.getType() == Material.AIR) continue;
+            
+            //always allow certain block types to explode
+            if(GriefPrevention.instance.config_mods_explodableIds.Contains(new MaterialInfo(block.getTypeId(), block.getData(), null)))
+            {
+                explodedBlocks.add(block);
+                continue;
+            }
+            
+            //is it in a land claim?
+            Claim claim = this.dataStore.getClaimAt(block.getLocation(), false, cachedClaim);
+            if(claim != null)
+            {
+                cachedClaim = claim;
+            }
+                    
+            //if yes, apply claim exemptions if they should apply
+            if((claim != null && claim.areExplosivesAllowed) || !GriefPrevention.instance.config_blockClaimExplosions)
+            {
+                explodedBlocks.add(block);
+                continue;
+            }
+            
+            //if no, then also consider surface rules
+            if(applySurfaceRules && claim == null)
+            {
+                if(block.getLocation().getBlockY() < GriefPrevention.instance.getSeaLevel(world) - 7)
+                {
+                    explodedBlocks.add(block);
+                }
+            }
+        }
+        
+        //clear original damage list and replace with allowed damage list
+        blocks.clear();
+        blocks.addAll(explodedBlocks);
+    }
 	
 	//when an item spawns...
 	@EventHandler(priority = EventPriority.LOWEST)
@@ -688,6 +711,12 @@ class EntityEventHandler implements Listener
                     //if attacker isn't a player, cancel
                     if(attacker == null)
                     {
+                        //exception case
+                        if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Monster)
+                        {
+                            return;
+                        }
+                        
                         event.setCancelled(true);
                         return;
                     }
@@ -707,7 +736,7 @@ class EntityEventHandler implements Listener
 			if ((subEvent.getEntity() instanceof Creature && GriefPrevention.instance.config_claims_protectCreatures))
 			{
 			    //if entity is tameable and has an owner, apply special rules
-		        if(subEvent.getEntity() instanceof Tameable && !GriefPrevention.instance.config_pvp_enabledWorlds.contains(subEvent.getEntity().getWorld()))
+		        if(subEvent.getEntity() instanceof Tameable)
 		        {
 		            Tameable tameable = (Tameable)subEvent.getEntity();
 		            if(tameable.isTamed() && tameable.getOwner() != null)
@@ -737,6 +766,13 @@ class EntityEventHandler implements Listener
         		                event.setCancelled(true);
         		                return;
                             }
+    		                //and disallow if attacker is pvp immune
+    		                else if(attackerData.pvpImmune)
+    		                {
+    		                    event.setCancelled(true);
+    	                        GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.CantFightWhileImmune);
+    	                        return;
+    		                }
 		                }
 		            }
 		        }
@@ -822,6 +858,62 @@ class EntityEventHandler implements Listener
 			}
 		}
 	}
+	
+	//when an entity is damaged
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onEntityDamageMonitor (EntityDamageEvent event)
+    {
+        //FEATURE: prevent players who very recently participated in pvp combat from hiding inventory to protect it from looting
+        //FEATURE: prevent players who are in pvp combat from logging out to avoid being defeated
+        
+        if(event.getEntity().getType() != EntityType.PLAYER) return;
+        
+        Player defender = (Player)event.getEntity();
+        
+        //only interested in entities damaging entities (ignoring environmental damage)
+        if(!(event instanceof EntityDamageByEntityEvent)) return;
+        
+        EntityDamageByEntityEvent subEvent = (EntityDamageByEntityEvent) event;
+        
+        //if not in a pvp rules world, do nothing
+        if(!GriefPrevention.instance.config_pvp_enabledWorlds.contains(defender.getWorld())) return;
+        
+        //determine which player is attacking, if any
+        Player attacker = null;
+        Projectile arrow = null;
+        Entity damageSource = subEvent.getDamager();
+        
+        if(damageSource != null)
+        {
+            if(damageSource instanceof Player)
+            {
+                attacker = (Player)damageSource;
+            }
+            else if(damageSource instanceof Projectile)
+            {
+                arrow = (Projectile)damageSource;
+                if(arrow.getShooter() instanceof Player)
+                {
+                    attacker = (Player)arrow.getShooter();
+                }
+            }
+        }
+        
+        //if attacker not a player, do nothing
+        if(attacker == null) return;
+        
+        PlayerData defenderData = this.dataStore.getPlayerData(defender.getUniqueId());
+        PlayerData attackerData = this.dataStore.getPlayerData(attacker.getUniqueId());
+        
+        if(attacker != defender)
+        {
+            long now = Calendar.getInstance().getTimeInMillis();
+            defenderData.lastPvpTimestamp = now;
+            defenderData.lastPvpPlayer = attacker.getName();
+            attackerData.lastPvpTimestamp = now;
+            attackerData.lastPvpPlayer = defender.getName();
+        }
+    }
 	
 	//when a vehicle is damaged
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)

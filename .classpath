@@ -5,10 +5,6 @@
 	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/Vault.jar"/>
 	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/worldguard.jar"/>
 	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/worldedit.jar"/>
-	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/spigot-1.8.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="https://hub.spigotmc.org/javadocs/spigot/"/>
-		</attributes>
-	</classpathentry>
+	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/spigot-1.8.3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
