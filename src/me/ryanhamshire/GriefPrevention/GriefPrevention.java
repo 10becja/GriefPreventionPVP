@@ -2929,7 +2929,7 @@ public class GriefPrevention extends JavaPlugin
 				GriefPrevention.sendMessage(player, TextMode.Err, Messages.AlreadyToggled);
 			else
 			{
-				String noEditReason = claim.allowEdit(player);
+				String noEditReason = claim.allowBuild(player, Material.AIR); //claim.allowEdit(player);
 				if(noEditReason != null)
 				{
 					GriefPrevention.sendMessage(player, TextMode.Err, noEditReason);
