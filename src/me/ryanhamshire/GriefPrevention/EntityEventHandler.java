@@ -714,13 +714,7 @@ class EntityEventHandler implements Listener
                 {
                     //if attacker isn't a player, cancel
                     if(attacker == null)
-                    {
-                        //exception case
-                        if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Monster)
-                        {
-                            return;
-                        }
-                        
+                    {               
                         event.setCancelled(true);
                         return;
                     }
