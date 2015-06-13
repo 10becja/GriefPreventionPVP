@@ -41,6 +41,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Explosive;
 import org.bukkit.entity.FallingBlock;
+import org.bukkit.entity.Horse;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
@@ -277,16 +278,16 @@ class EntityEventHandler implements Listener
             }
                     
             //if yes, apply claim exemptions if they should apply
-            if((claim != null && claim.areExplosivesAllowed) || !GriefPrevention.instance.config_blockClaimExplosions)
+            if(claim != null && (claim.areExplosivesAllowed || !GriefPrevention.instance.config_blockClaimExplosions))
             {
                 explodedBlocks.add(block);
                 continue;
             }
             
             //if no, then also consider surface rules
-            if(applySurfaceRules && claim == null)
+            if(claim == null)
             {
-                if(block.getLocation().getBlockY() < GriefPrevention.instance.getSeaLevel(world) - 7)
+                if(!applySurfaceRules || block.getLocation().getBlockY() < GriefPrevention.instance.getSeaLevel(world) - 7)
                 {
                     explodedBlocks.add(block);
                 }
@@ -552,6 +553,9 @@ class EntityEventHandler implements Listener
 		//monsters are never protected
 		if(event.getEntity() instanceof Monster) return;
 		
+		//horse protections can be disabled
+		if(event.getEntity() instanceof Horse && !GriefPrevention.instance.config_claims_protectHorses) return;
+		
 		//protect pets from environmental damage types which could be easily caused by griefers
         if(event.getEntity() instanceof Tameable && !GriefPrevention.instance.config_pvp_enabledWorlds.contains(event.getEntity().getWorld()))
         {
@@ -604,10 +608,6 @@ class EntityEventHandler implements Listener
 		{
 			//FEATURE: prevent pvp in the first minute after spawn, and prevent pvp when one or both players have no inventory
 			
-			//doesn't apply when the attacker has the no pvp immunity permission
-			//this rule is here to allow server owners to have a world with no spawn camp protection by assigning permissions based on the player's world
-			if(attacker.hasPermission("griefprevention.nopvpimmunity")) return;
-			
 			Player defender = (Player)(event.getEntity());
 			
 			if(attacker != defender)
@@ -654,10 +654,32 @@ class EntityEventHandler implements Listener
     		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
     					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
     				{
-    					defenderData.lastClaim = defenderClaim;
-    					event.setCancelled(true);
-    					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.PlayerInPvPSafeZone);
-    					return;
+	    				if(!attackerData.ignoreClaims)
+	    				{
+	    				    if(	attackerClaim != null && //ignore claims mode allows for pvp inside land claims
+	    				        !attackerData.inPvpCombat() &&
+	        					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
+	        					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
+	        					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	        				{
+	        					attackerData.lastClaim = attackerClaim;
+	        					event.setCancelled(true);
+	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.CantFightWhileImmune);
+	        					return;
+	        				}
+	        				
+	        				if( defenderClaim != null &&
+	        				    !defenderData.inPvpCombat() &&
+	        				    (defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
+	        		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
+	        					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	        				{
+	        					defenderData.lastClaim = defenderClaim;
+	        					event.setCancelled(true);
+	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.PlayerInPvPSafeZone);
+	        					return;
+	        				}
+	    				}
     				}
     			}
     			
@@ -698,6 +720,9 @@ class EntityEventHandler implements Listener
 		       || subEvent.getEntityType() == EntityType.VILLAGER)
 		    	
 		    {
+		        //allow for disabling villager protections in the config
+		        if(subEvent.getEntityType() == EntityType.VILLAGER && !GriefPrevention.instance.config_claims_protectCreatures) return;
+		        
 		        //decide whether it's claimed
 		        Claim cachedClaim = null;
                 PlayerData playerData = null;

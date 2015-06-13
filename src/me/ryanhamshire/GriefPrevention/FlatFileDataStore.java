@@ -32,17 +32,15 @@ import com.google.common.io.Files;
 //manages data stored in the file system
 public class FlatFileDataStore extends DataStore
 {
-	private final static String playerDataFolderPath = dataLayerFolderPath + File.separator + "PlayerData";
 	private final static String claimDataFolderPath = dataLayerFolderPath + File.separator + "ClaimData";
 	private final static String nextClaimIdFilePath = claimDataFolderPath + File.separator + "_nextClaimID";
 	private final static String schemaVersionFilePath = dataLayerFolderPath + File.separator + "_schemaVersion";
 	
 	static boolean hasData()
 	{
-		File playerDataFolder = new File(playerDataFolderPath);
 		File claimsDataFolder = new File(claimDataFolderPath);
 		
-		return playerDataFolder.exists() || claimsDataFolder.exists();
+		return claimsDataFolder.exists();
 	}
 	
 	//initialization!
@@ -96,7 +94,9 @@ public class FlatFileDataStore extends DataStore
 			}
 			catch(Exception e)
 			{
-				 GriefPrevention.AddLogEntry("Unable to load group bonus block data from file \"" + file.getName() + "\": " + e.getMessage());
+			    StringWriter errors = new StringWriter();
+	            e.printStackTrace(new PrintWriter(errors));
+	            GriefPrevention.AddLogEntry(errors.toString(), CustomLogEntryTypes.Exception);
 			}
 			
 			try
@@ -342,12 +342,14 @@ public class FlatFileDataStore extends DataStore
 				{
 					if(e.getMessage().contains("World not found"))
 					{
+					    inStream.close();
 					    files[i].delete();
 					}
 					else
 					{
-					    GriefPrevention.AddLogEntry("Unable to load data for claim \"" + files[i].getName() + "\": " + e.toString());
-					    e.printStackTrace();
+					    StringWriter errors = new StringWriter();
+			            e.printStackTrace(new PrintWriter(errors));
+			            GriefPrevention.AddLogEntry(files[i].getName() + " " + errors.toString(), CustomLogEntryTypes.Exception);
 					}
 				}
 				
@@ -390,8 +392,9 @@ public class FlatFileDataStore extends DataStore
 		//if any problem, log it
 		catch(Exception e)
 		{
-			GriefPrevention.AddLogEntry("Unexpected exception saving data for claim \"" + claimID + "\": " + e.toString());
-			e.printStackTrace();
+		    StringWriter errors = new StringWriter();
+            e.printStackTrace(new PrintWriter(errors));
+            GriefPrevention.AddLogEntry(claimID + " " + errors.toString(), CustomLogEntryTypes.Exception);
 		}
 		
 		//close the file
@@ -553,8 +556,9 @@ public class FlatFileDataStore extends DataStore
 			//if last attempt failed, log information about the problem
 			if(needRetry)
 			{
-			    GriefPrevention.AddLogEntry("Retry attempts exhausted.  Unable to load data for player \"" + playerID.toString() + "\": " + latestException.toString());
-                latestException.printStackTrace();
+			    StringWriter errors = new StringWriter();
+	            latestException.printStackTrace(new PrintWriter(errors));
+	            GriefPrevention.AddLogEntry(playerID + " " + errors.toString(), CustomLogEntryTypes.Exception);
 			}
 		}
 			
@@ -563,7 +567,7 @@ public class FlatFileDataStore extends DataStore
 	
 	//saves changes to player data.  MUST be called after you're done making changes, otherwise a reload will lose them
 	@Override
-	public void asyncSavePlayerData(UUID playerID, PlayerData playerData)
+	public void overrideSavePlayerData(UUID playerID, PlayerData playerData)
 	{
 		//never save data for the "administrative" account.  null for claim owner ID indicates administrative account
 		if(playerID == null) return;
@@ -605,6 +609,7 @@ public class FlatFileDataStore extends DataStore
 		catch(Exception e)
 		{
 			GriefPrevention.AddLogEntry("GriefPrevention: Unexpected exception saving data for player \"" + playerID.toString() + "\": " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 	
@@ -704,8 +709,9 @@ public class FlatFileDataStore extends DataStore
 			//all group data files start with a dollar sign.  ignoring those, already handled above
 			if(file.getName().startsWith("$")) continue;
 			
-			//ignore special files (claimID)
+			//ignore special files
 			if(file.getName().startsWith("_")) continue;
+			if(file.getName().endsWith(".ignore")) continue;
 			
 			UUID playerID = UUID.fromString(file.getName());
 			databaseStore.savePlayerData(playerID, this.getPlayerData(playerID));

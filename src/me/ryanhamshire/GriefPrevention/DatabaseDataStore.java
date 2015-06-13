@@ -18,6 +18,8 @@
 
 package me.ryanhamshire.GriefPrevention;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -514,9 +516,9 @@ public class DatabaseDataStore extends DataStore
 		}
 		catch(SQLException e)
 		{
-			GriefPrevention.AddLogEntry("Unable to retrieve data for player " + playerID.toString() + ".  Details:");
-			GriefPrevention.AddLogEntry(e.getMessage());
-			e.printStackTrace();
+		    StringWriter errors = new StringWriter();
+            e.printStackTrace(new PrintWriter(errors));
+            GriefPrevention.AddLogEntry(playerID + " " + errors.toString(), CustomLogEntryTypes.Exception);
 		}
 			
 		return playerData;
@@ -524,7 +526,7 @@ public class DatabaseDataStore extends DataStore
 	
 	//saves changes to player data.  MUST be called after you're done making changes, otherwise a reload will lose them
 	@Override
-	public void asyncSavePlayerData(UUID playerID, PlayerData playerData)
+	public void overrideSavePlayerData(UUID playerID, PlayerData playerData)
 	{
 		//never save data for the "administrative" account.  an empty string for player name indicates administrative account
 		if(playerID == null) return;
@@ -548,8 +550,9 @@ public class DatabaseDataStore extends DataStore
 		}
 		catch(SQLException e)
 		{
-			GriefPrevention.AddLogEntry("Unable to save data for player " + playerID.toString() + ".  Details:");
-			GriefPrevention.AddLogEntry(e.getMessage());
+		    StringWriter errors = new StringWriter();
+		    e.printStackTrace(new PrintWriter(errors));
+		    GriefPrevention.AddLogEntry(playerID + " " + errors.toString(), CustomLogEntryTypes.Exception);
 		}
 	}
 	

@@ -1,10 +1,10 @@
 name: GriefPrevention
 description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
-softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit]
+softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 11.3.0
+version: 11.6.3
 commands:
    claimprotect:
       description: Makes it so no one can break blocks in a claim
@@ -138,6 +138,10 @@ commands:
       description: Deletes all administrative claims.
       usage: /DeleteAllAdminClaims
       permission: griefprevention.adminclaims
+   adminclaimslist:
+      description: Lists all administrative claims.
+      usage: /AdminClaimsList
+      permission: griefprevention.adminclaims
    transferclaim:
       description: Converts an administrative claim to a private claim.
       usage: /TransferClaim <player>
@@ -169,6 +173,29 @@ commands:
       description: Allows an administrator to get technical information about blocks in the world and items in hand.
       usage: /GPBlockInfo
       permission: griefprevention.gpblockinfo
+   ignoreplayer:
+      description: Ignores another player's chat messages.
+      usage: /IgnorePlayer <player name>
+      aliases: [ignore]
+      permission: griefprevention.ignore
+   unignoreplayer:
+      description: Unignores another player's chat messages.
+      usage: /UnIgnorePlayer <player name>
+      aliases: [unignore]
+      permission: griefprevention.ignore
+   ignoredplayerlist:
+      description: Lists the players you're ignoring in chat.
+      usage: /IgnoredPlayerList
+      aliases: [ignores, ignored, ignorelist, ignoredlist, listignores, listignored, ignoring]
+      permission: griefprevention.ignore
+   separate:
+      description: Forces two players to ignore each other in chat.
+      usage: /Separate
+      permission: griefprevention.separate
+   unseparate:
+      description: Reverses /separate.
+      usage: /UnSeparate
+      permission: griefprevention.separate
 permissions:
     griefprevention.eject:
         description: Grants permission to eject players from claims.
@@ -196,6 +223,8 @@ permissions:
             griefprevention.transferclaim: true
             griefprevention.claimslistother: true
             griefprevention.siegeimmune: true
+            griefprevention.separate: true
+            griefprevention.eavesdropsigns: true
     griefprevention.siegeimmune:
         description: Makes a player immune to /Siege.
         default: op
@@ -232,6 +261,9 @@ permissions:
     griefprevention.eavesdrop:
         description: Allows a player to see whispered chat messages (/tell) and softmuted messages.
         default: op
+    griefprevention.eavesdropsigns:
+        description: Allows a player to see sign placements as chat messages.
+        default: op
     griefprevention.restorenatureaggressive:
         description: Grants access to /RestoreNatureAggressive and /RestoreNatureFill.
         default: op
@@ -259,3 +291,9 @@ permissions:
     griefprevention.overrideclaimcountlimit:
         description: Allows players to create more claims than the limit specified by the config.
         default: op
+    griefprevention.separate:
+        description: Grants access to /Separate and /UnSeparate.
+        default: op
+    griefprevention.ignore:
+        description: Grants access to /Ignore, /Unignore, and /IgnoreList
+        default: true

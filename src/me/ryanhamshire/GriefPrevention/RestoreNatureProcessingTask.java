@@ -100,6 +100,7 @@ class RestoreNatureProcessingTask implements Runnable
 		{
 			this.playerBlocks.add(Material.LEAVES.getId());
 			this.playerBlocks.add(Material.LOG.getId());
+			this.playerBlocks.add(Material.LOG_2.getId());
 			this.playerBlocks.add(Material.VINE.getId());
 		}
 	}
@@ -136,12 +137,6 @@ class RestoreNatureProcessingTask implements Runnable
 		//remove water/lava above sea level
 		this.removeDumpedFluids();
 		
-		//cover over any gaping holes in creative mode worlds
-		if(this.creativeMode && this.environment == Environment.NORMAL)
-		{
-			this.fillBigHoles();
-		}
-		
 		//cover surface stone and gravel with sand or grass, as the biome requires
 		this.coverSurfaceStone();
 		
@@ -155,7 +150,9 @@ class RestoreNatureProcessingTask implements Runnable
 	
 	private void removePlayerLeaves()
 	{
-		for(int x = 1; x < snapshots.length - 1; x++)
+		if(this.seaLevel < 1) return;
+	    
+	    for(int x = 1; x < snapshots.length - 1; x++)
 		{
 			for(int z = 1; z < snapshots[0][0].length - 1; z++)
 			{
@@ -172,27 +169,6 @@ class RestoreNatureProcessingTask implements Runnable
 		}		
 	}
 
-	private void fillBigHoles()
-	{
-		for(int x = 1; x < snapshots.length - 1; x++)
-		{
-			for(int z = 1; z < snapshots[0][0].length - 1; z++)
-			{
-				//replace air, lava, or running water at sea level with stone
-				if(this.snapshots[x][this.seaLevel - 2][z].typeId == Material.AIR.getId() || this.snapshots[x][this.seaLevel - 2][z].typeId == Material.LAVA.getId() || (this.snapshots[x][this.seaLevel - 2][z].typeId == Material.WATER.getId() || this.snapshots[x][this.seaLevel - 2][z].data != 0))
-				{
-					this.snapshots[x][this.seaLevel - 2][z].typeId = Material.STONE.getId();
-				}
-				
-				//do the same for one layer beneath that (because a future restoration step may convert surface stone to sand, which falls down)
-				if(this.snapshots[x][this.seaLevel - 3][z].typeId == Material.AIR.getId() || this.snapshots[x][this.seaLevel - 3][z].typeId == Material.LAVA.getId() || (this.snapshots[x][this.seaLevel - 3][z].typeId == Material.WATER.getId() || this.snapshots[x][this.seaLevel - 3][z].data != 0))
-				{
-					this.snapshots[x][this.seaLevel - 3][z].typeId = Material.STONE.getId();
-				}
-			}
-		}
-	}
-	
 	//converts sandstone adjacent to sand to sand, and any other sandstone to air
 	private void removeSandstone()
 	{
@@ -235,7 +211,9 @@ class RestoreNatureProcessingTask implements Runnable
 	
 	private void reduceStone()
 	{
-		for(int x = 1; x < snapshots.length - 1; x++)
+		if(this.seaLevel < 1) return;
+	    
+	    for(int x = 1; x < snapshots.length - 1; x++)
 		{
 			for(int z = 1; z < snapshots[0][0].length - 1; z++)
 			{
@@ -280,7 +258,9 @@ class RestoreNatureProcessingTask implements Runnable
 	
 	private void reduceLogs()
 	{
-		boolean jungleBiome = this.biome == Biome.JUNGLE || this.biome == Biome.JUNGLE_HILLS;
+		if(this.seaLevel < 1) return;
+	    
+	    boolean jungleBiome = this.biome == Biome.JUNGLE || this.biome == Biome.JUNGLE_HILLS;
 		
 		//scan all blocks above sea level
 		for(int x = 1; x < snapshots.length - 1; x++)
@@ -293,6 +273,7 @@ class RestoreNatureProcessingTask implements Runnable
 					
 					//skip non-logs
 					if(block.typeId != Material.LOG.getId()) continue;
+					if(block.typeId != Material.LOG_2.getId()) continue;
 					
 					//if in jungle biome, skip jungle logs
 					if(jungleBiome && block.data == 3) continue;
@@ -451,6 +432,8 @@ class RestoreNatureProcessingTask implements Runnable
 		notSuitableForFillBlocks.add(Material.CACTUS.getId());
 		notSuitableForFillBlocks.add(Material.STATIONARY_WATER.getId());
 		notSuitableForFillBlocks.add(Material.STATIONARY_LAVA.getId());
+		notSuitableForFillBlocks.add(Material.LOG.getId());
+		notSuitableForFillBlocks.add(Material.LOG_2.getId());
 		
 		boolean changed;
 		do
@@ -525,7 +508,7 @@ class RestoreNatureProcessingTask implements Runnable
 		do
 		{
 			changed = false;		
-			for(int y = this.seaLevel - 10; y <= this.seaLevel; y++)			
+			for(int y = Math.max(this.seaLevel - 10, 0); y <= this.seaLevel; y++)			
 			{
 				for(int x = 1; x < snapshots.length - 1; x++)				
 				{
@@ -580,7 +563,9 @@ class RestoreNatureProcessingTask implements Runnable
 	
 	private void removeDumpedFluids()
 	{
-		//remove any surface water or lava above sea level, presumed to be placed by players
+		if(this.seaLevel < 1) return;
+	    
+	    //remove any surface water or lava above sea level, presumed to be placed by players
 		//sometimes, this is naturally generated.  but replacing it is very easy with a bucket, so overall this is a good plan
 		if(this.environment == Environment.NETHER) return;
 		for(int x = 1; x < snapshots.length - 1; x++)
@@ -743,6 +728,7 @@ class RestoreNatureProcessingTask implements Runnable
 		{
 			playerBlocks.add(Material.LEAVES.getId());
 			playerBlocks.add(Material.LOG.getId());
+			playerBlocks.add(Material.LOG_2.getId());
 		}
 		
 		return playerBlocks;

@@ -57,30 +57,30 @@ class DeliverClaimBlocksTask implements Runnable
 	        DataStore dataStore = GriefPrevention.instance.dataStore;
             PlayerData playerData = dataStore.getPlayerData(player.getUniqueId());
             
-            //if player is over accrued limit, accrued limit was probably reduced in config file AFTER he accrued
-            //in that case, leave his blocks where they are
-            int currentTotal = playerData.getAccruedClaimBlocks();
-            if(currentTotal >= GriefPrevention.instance.config_claims_maxAccruedBlocks) return;
-            
             Location lastLocation = playerData.lastAfkCheckLocation;
             try
             {
                 //if he's not in a vehicle and has moved at least three blocks since the last check
                 //and he's not being pushed around by fluids
                 if(!player.isInsideVehicle() && 
-                   (lastLocation == null || lastLocation.distanceSquared(player.getLocation()) >= 9) &&
+                   (lastLocation == null || lastLocation.distanceSquared(player.getLocation()) >= 0) &&
                    !player.getLocation().getBlock().isLiquid())
                 {                   
-                    
                     //add blocks
-                    int accruedBlocks = GriefPrevention.instance.config_claims_blocksAccruedPerHour / 12;
+                    int accruedBlocks = GriefPrevention.instance.config_claims_blocksAccruedPerHour / 6;
                     if(accruedBlocks < 0) accruedBlocks = 1;
+                    
+                    GriefPrevention.AddLogEntry("Delivering " + accruedBlocks + " blocks to " + player.getName(), CustomLogEntryTypes.Debug, true);
                     
                     playerData.accrueBlocks(accruedBlocks); 
                     
                     //intentionally NOT saving data here to reduce overall secondary storage access frequency
                     //many other operations will cause this players data to save, including his eventual logout
-                    //dataStore.savePlayerData(player.getName(), playerData);
+                    //dataStore.savePlayerData(player.getUniqueIdentifier(), playerData);
+                }
+                else
+                {
+                    GriefPrevention.AddLogEntry(player.getName() + " isn't active enough.", CustomLogEntryTypes.Debug, true);
                 }
             }
             catch(IllegalArgumentException e)  //can't measure distance when to/from are different worlds
