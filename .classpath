@@ -2,9 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/Vault.jar"/>
-	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/worldguard.jar"/>
-	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/worldedit.jar"/>
-	<classpathentry kind="lib" path="/Users/jamesbeck/Documents/workspace/APIs/spigot-1.8.3.jar"/>
+	<classpathentry kind="lib" path="D:/James/workspace/APIs/Vault.jar"/>
+	<classpathentry kind="lib" path="D:/James/workspace/APIs/worldguard.jar"/>
+	<classpathentry kind="lib" path="D:/James/workspace/APIs/worldedit.jar"/>
+	<classpathentry kind="lib" path="D:/James/workspace/APIs/spigot-1.8.3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
