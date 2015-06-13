@@ -32,6 +32,7 @@ import me.ryanhamshire.GriefPrevention.ShovelMode;
 import me.ryanhamshire.GriefPrevention.SiegeData;
 import me.ryanhamshire.GriefPrevention.Visualization;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -155,6 +156,7 @@ public class PlayerData
 		
 		if(elapsed > GriefPrevention.instance.config_pvp_combatTimeoutSeconds * 1000) //X seconds
 		{
+			GriefPrevention.sendMessage(Bukkit.getPlayer(playerID), TextMode.Info, Messages.NoLongerCombatTagged);
 			this.lastPvpTimestamp = 0;
 			return false;
 		}

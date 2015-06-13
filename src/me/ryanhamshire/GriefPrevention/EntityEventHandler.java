@@ -637,18 +637,41 @@ class EntityEventHandler implements Listener
     			if(GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims || GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims)
     			{
     				Claim attackerClaim = this.dataStore.getClaimAt(attacker.getLocation(), false, attackerData.lastClaim);
+    				Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
+    				
     				if(	attackerClaim != null && !attackerClaim.isPvpAllowed &&
     					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
     					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
     					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
     				{
-    					attackerData.lastClaim = attackerClaim;
-    					event.setCancelled(true);
-    					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.CantFightWhileImmune);
-    					return;
+    					if(!attackerData.ignoreClaims)
+	    				{
+	    				    if(	attackerClaim != null && //ignore claims mode allows for pvp inside land claims
+	    				        !attackerData.inPvpCombat() &&
+	        					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
+	        					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
+	        					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	        				{
+	        					attackerData.lastClaim = attackerClaim;
+	        					event.setCancelled(true);
+	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.CantFightWhileImmune);
+	        					return;
+	        				}
+	        				
+	        				if( defenderClaim != null &&
+	        				    !defenderData.inPvpCombat() &&
+	        				    (defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
+	        		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
+	        					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	        				{
+	        					defenderData.lastClaim = defenderClaim;
+	        					event.setCancelled(true);
+	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.PlayerInPvPSafeZone);
+	        					return;
+	        				}
+	    				}
     				}
     				
-    				Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
     				if( defenderClaim != null && !defenderClaim.isPvpAllowed &&
     					(defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
     		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
@@ -691,9 +714,9 @@ class EntityEventHandler implements Listener
 	    			
 	    			//warn both attacker and defender, but only if they aren't already in combat
 	    			if(!(defenderData.inPvpCombat()) && defender != null)
-	    				GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.CombatTagged, ((Integer) GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
+	    				GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.CombatTaggedDefender, attacker.getName(), ((Integer) GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
 	    			if(!(attackerData.inPvpCombat()) && attacker != null)
-	    				GriefPrevention.sendMessage(attacker, TextMode.Warn, Messages.CombatTagged, ((Integer)GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
+	    				GriefPrevention.sendMessage(attacker, TextMode.Warn, Messages.CombatTaggedAttacker, defender.getName(), ((Integer)GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
 	    			
 	    			long now = Calendar.getInstance().getTimeInMillis();
 	    			defenderData.lastPvpTimestamp = now;

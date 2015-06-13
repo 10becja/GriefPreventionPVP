@@ -96,6 +96,11 @@ class PlayerEventHandler implements Listener
 	public void onPlayerMove (PlayerMoveEvent event)
 	{
 		Player p = event.getPlayer();
+		
+		//check if the person can log out. better than creating new runnables,
+		//but still not very efficient. Might have to remove.
+		this.dataStore.getPlayerData(p.getUniqueId()).inPvpCombat(); 
+		
 		Location to = event.getTo();
 		Claim c = this.dataStore.getClaimAt(to, true, null);
 		if(c == null)

@@ -1336,7 +1336,9 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.ProtectedClaim, "This claim is protected! Use /claimprotect to disable and build.", null);
 		this.addDefault(defaults, Messages.EjectedFromClaim, "You've been ejected from {0}'s claim, go bother someone else.", "0: The claim owner");
 		this.addDefault(defaults, Messages.EjectedSuccess, "Ejected {0}", "0: The player who was ejected");
-		this.addDefault(defaults, Messages.CombatTagged, "You've been placed in combat! Don't log out for {0} seconds!", "0: How many seconds before they can log out again");
+		this.addDefault(defaults, Messages.CombatTaggedDefender, "You've been placed in combat by {0}! Don't log out for {1} seconds!", "0: The attacker; 1: How many seconds before they can log out again");
+		this.addDefault(defaults, Messages.CombatTaggedAttacker, "You've started combat with {0}! Don't log out for {1} seconds!", "0: The defender; 1: How many seconds before they can log out again");
+		this.addDefault(defaults, Messages.NoLongerCombatTagged, "You are no longer in combat. It's safe to logout.",null);
 		this.addDefault(defaults, Messages.NoPlayerFound, "Could not find a player named {0}", "0: Missing Player");
 		this.addDefault(defaults, Messages.ShowNearbyClaims, "Found {0} land claims.", "0: Number of claims found.");
 		this.addDefault(defaults, Messages.NoChatUntilMove, "Sorry, but you have to move a little more before you can chat.  We get lots of spam bots here.  :)", null);
