@@ -1463,6 +1463,7 @@ public class GriefPrevention extends JavaPlugin
 			//load player data
 			PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 			int availableBlocks = playerData.getRemainingClaimBlocks();
+			int bonusBlocks = playerData.getBonusClaimBlocks();
 			
 			//if no amount provided, just tell player value per block sold, and how many he can sell
 			if(args.length != 1)
@@ -1488,7 +1489,7 @@ public class GriefPrevention extends JavaPlugin
 			}
 			
 			//if he doesn't have enough blocks, tell him so
-			if(blockCount > availableBlocks)
+			if(blockCount > availableBlocks || blockCount > bonusBlocks)
 			{
 				GriefPrevention.sendMessage(player, TextMode.Err, Messages.NotEnoughBlocksForSale);
 			}
