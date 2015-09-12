@@ -1536,6 +1536,7 @@ class PlayerEventHandler implements Listener
 						clickedBlockType == Material.ANVIL ||
 						clickedBlockType == Material.JUKEBOX ||
 						clickedBlockType == Material.CAKE_BLOCK ||
+						clickedBlockType == Material.FLOWER_POT ||
 						GriefPrevention.instance.config_mods_containerTrustIds.Contains(new MaterialInfo(clickedBlock.getTypeId(), clickedBlock.getData(), null)))))
 		{			
 		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
@@ -1697,7 +1698,7 @@ class PlayerEventHandler implements Listener
 			
 			//if it's bonemeal or armor stand or spawn egg, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
 			if(clickedBlock != null && (materialInHand == Material.INK_SACK || materialInHand == Material.ARMOR_STAND || materialInHand == Material.MONSTER_EGG ||
-					(materialInHand == Material.FLINT_AND_STEEL && clickedBlockType == Material.TNT)))
+					(materialInHand == Material.FLINT_AND_STEEL && clickedBlockType == Material.TNT) || materialInHand == Material.ANVIL ))
 			{
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), clickedBlockType);
 				if(noBuildReason != null)
