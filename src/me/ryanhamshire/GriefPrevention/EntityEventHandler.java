@@ -733,6 +733,8 @@ public class EntityEventHandler implements Listener
 	    			defenderData.lastPvpPlayer = attacker.getName();
 	    			attackerData.lastPvpTimestamp = now;
 	    			attackerData.lastPvpPlayer = defender.getName();
+	    			Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "petadmin remove " + defender.getName());
+	    			Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "petadmin remove " + attacker.getName());
     			}
 			}
 		}
