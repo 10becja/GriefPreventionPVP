@@ -308,7 +308,7 @@ public class GriefPrevention extends JavaPlugin
 		
 		//start recurring cleanup scan for unused claims belonging to inactive players
 		CleanupUnusedClaimsTask task2 = new CleanupUnusedClaimsTask();
-		this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task2, 20L * 60 * 2, 20L * 60 * 5);
+		this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task2, 20L * 60, 20L * 60 * 5);
 		
 		//register for events
 		PluginManager pluginManager = this.getServer().getPluginManager();
@@ -1424,6 +1424,15 @@ public class GriefPrevention extends JavaPlugin
 				if(blockCount <= 0)
 				{
 					return false;
+				}
+				
+				int currentBlocks = playerData.getBonusClaimBlocks() + playerData.getAccruedClaimBlocks();
+				
+				if(blockCount + currentBlocks > GriefPrevention.instance.config_claims_maxAccruedBlocks)
+				{
+					int remainingBlocks = GriefPrevention.instance.config_claims_maxAccruedBlocks - currentBlocks;
+					GriefPrevention.sendMessage(player, TextMode.Err, Messages.ExceedsMaxBlockCount, String.valueOf(remainingBlocks));
+					return true;
 				}
 				
 				//if the player can't afford his purchase, send error message

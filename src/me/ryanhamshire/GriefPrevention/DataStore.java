@@ -1392,7 +1392,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.ManagersDontUntrustManagers, "Only the claim owner can demote a manager.", null);
 		this.addDefault(defaults, Messages.PlayerNotIgnorable, "You can't ignore that player.", null);
 		this.addDefault(defaults, Messages.NoEnoughBlocksForChestClaim, "Because you don't have any claim blocks available, no automatic land claim was created for you.  You can use /ClaimsList to monitor your available claim block total.", null);
-		
+		this.addDefault(defaults, Messages.ExceedsMaxBlockCount, "You can only purchase an additional {0} blocks before reaching the limit.", "0:Number of blocks they can still purchase");
 		this.addDefault(defaults, Messages.BookAuthor, "BigScary", null);
 		this.addDefault(defaults, Messages.BookTitle, "How to Claim Land", null);
 		this.addDefault(defaults, Messages.BookLink, "Click: {0}", "{0}: video URL");

@@ -858,7 +858,7 @@ class PlayerEventHandler implements Listener
 						Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
 						for(Player otherPlayer : players)
 						{
-							if(otherPlayer.isOp())
+							if(otherPlayer.isOp() || otherPlayer.hasPermission("essentials.ban.notify"))
 							{
 								GriefPrevention.sendMessage(otherPlayer, TextMode.Success, Messages.AutoBanNotify, player.getName(), info.bannedAccountName);
 							}
