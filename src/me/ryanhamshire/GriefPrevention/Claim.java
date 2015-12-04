@@ -143,7 +143,7 @@ public class Claim
 					Block block = lesser.getWorld().getBlockAt(x, y, z);
 					if(exclusionClaim != null && exclusionClaim.contains(block.getLocation(), true, false)) continue;
 					
-					if(block.getType() == Material.STATIONARY_LAVA || block.getType() == Material.LAVA)
+					if(block.getType() == Material.STATIONARY_LAVA || block.getType() == Material.WATER || block.getType() == Material.STATIONARY_WATER || block.getType() == Material.LAVA)
 					{
 						block.setType(Material.AIR);
 					}
@@ -176,7 +176,7 @@ public class Claim
 					//dodge the exclusion claim
 					Block block = lesser.getWorld().getBlockAt(x, y, z);
 					
-					if(block.getType() == Material.STATIONARY_LAVA || block.getType() == Material.LAVA)
+					if(block.getType() == Material.STATIONARY_LAVA || block.getType() == Material.WATER || block.getType() == Material.STATIONARY_WATER || block.getType() == Material.LAVA)
 					{
 						return true;
 					}
@@ -188,7 +188,7 @@ public class Claim
 	}
 	
 	//main constructor.  note that only creating a claim instance does nothing - a claim must be added to the data store to be effective
-	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, String [] builderIDs, String [] containerIds, String [] accessorIDs, String [] managerIDs, Long id, Boolean isPvpAllowed)
+	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, List<String> builderIDs, List<String> containerIDs, List<String> accessorIDs, List<String> managerIDs, Long id, Boolean isPvpAllowed)
 	{
 		//modification date
 		this.modifiedDate = Calendar.getInstance().getTime();
@@ -206,36 +206,32 @@ public class Claim
 		this.ownerID = ownerID;
 		
 		//other permissions
-		for(int i = 0; i < builderIDs.length; i++)
+		for(String builderID : builderIDs)
 		{
-			String builderID = builderIDs[i];
 			if(builderID != null && !builderID.isEmpty())
 			{
 				this.playerIDToClaimPermissionMap.put(builderID, ClaimPermission.Build);
 			}
 		}
 		
-		for(int i = 0; i < containerIds.length; i++)
+		for(String containerID : containerIDs)
 		{
-			String containerID = containerIds[i];
 			if(containerID != null && !containerID.isEmpty())
 			{
 				this.playerIDToClaimPermissionMap.put(containerID, ClaimPermission.Inventory);
 			}
 		}
 		
-		for(int i = 0; i < accessorIDs.length; i++)
+		for(String accessorID : accessorIDs)
 		{
-			String accessorID = accessorIDs[i];
 			if(accessorID != null && !accessorID.isEmpty())
 			{
 				this.playerIDToClaimPermissionMap.put(accessorID, ClaimPermission.Access);
 			}
 		}
 		
-		for(int i = 0; i < managerIDs.length; i++)
+		for(String managerID : managerIDs)
 		{
-			String managerID = managerIDs[i];
 			if(managerID != null && !managerID.isEmpty())
 			{
 				this.managers.add(managerID);
@@ -268,8 +264,7 @@ public class Claim
 		Claim claim = new Claim
 			(new Location(this.lesserBoundaryCorner.getWorld(), this.lesserBoundaryCorner.getBlockX() - howNear, this.lesserBoundaryCorner.getBlockY(), this.lesserBoundaryCorner.getBlockZ() - howNear),
 			 new Location(this.greaterBoundaryCorner.getWorld(), this.greaterBoundaryCorner.getBlockX() + howNear, this.greaterBoundaryCorner.getBlockY(), this.greaterBoundaryCorner.getBlockZ() + howNear),
-			 null, new String[] {}, new String[] {}, new String[] {}, new String[] {}, null, false);
-		
+			 null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false);		
 		return claim.contains(location, false, true);
 	}
 	
@@ -417,7 +412,7 @@ public class Claim
 	public String allowBreak(Player player, Material material)
 	{
 		//if under siege, some blocks will be breakable
-		if(this.siegeData != null)
+		if(this.siegeData != null || this.doorsOpen)
 		{
 			boolean breakable = false;
 			
@@ -454,7 +449,7 @@ public class Claim
 	//access permission check
 	public String allowAccess(Player player)
 	{
-		//following a siege where the defender lost, the claim will allow everyone access for a time
+	    //following a siege where the defender lost, the claim will allow everyone access for a time
 		if(this.doorsOpen) return null;
 		
 		//admin claims need adminclaims permission only.

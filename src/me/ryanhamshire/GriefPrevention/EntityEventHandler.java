@@ -53,6 +53,8 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.ThrownPotion;
 import org.bukkit.entity.Villager;
+import org.bukkit.entity.WaterMob;
+
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -107,6 +109,11 @@ public class EntityEventHandler implements Listener
 		{
 			event.setCancelled(true);
 		}
+	    
+		else if(!GriefPrevention.instance.config_rabbitsEatCrops && event.getEntityType() == EntityType.RABBIT)
+        {
+            event.setCancelled(true);
+        }
 		
 		//don't allow the wither to break blocks, when the wither is determined, too expensive to constantly check for claimed blocks
 		else if(event.getEntityType() == EntityType.WITHER && GriefPrevention.instance.config_claims_worldModes.get(event.getBlock().getWorld()) != ClaimsMode.Disabled)
@@ -285,6 +292,25 @@ public class EntityEventHandler implements Listener
             {
                 explodedBlocks.add(block);
                 continue;
+            }
+            
+            //if claim is under siege, allow soft blocks to be destroyed
+            if(claim != null && claim.siegeData != null)
+            {
+                Material material = block.getType();
+                boolean breakable = false;
+                for(int j = 0; j < GriefPrevention.instance.config_siege_blocks.size(); j++)
+                {
+                    Material breakableMaterial = GriefPrevention.instance.config_siege_blocks.get(j);
+                    if(breakableMaterial == material)
+                    {
+                        breakable = true;
+                        explodedBlocks.add(block);
+                        break;
+                    }
+                }
+
+                if(breakable) continue;
             }
             
             //if no, then also consider surface rules
@@ -791,7 +817,7 @@ public class EntityEventHandler implements Listener
 		    }
 		    
 		    //if the entity is an non-monster creature (remember monsters disqualified above), or a vehicle
-			if ((subEvent.getEntity() instanceof Creature && GriefPrevention.instance.config_claims_protectCreatures))
+			if (((subEvent.getEntity() instanceof Creature || subEvent.getEntity() instanceof WaterMob) && GriefPrevention.instance.config_claims_protectCreatures))
 			{
 			    //if entity is tameable and has an owner, apply special rules
 		        if(subEvent.getEntity() instanceof Tameable)
@@ -889,7 +915,7 @@ public class EntityEventHandler implements Listener
 					}
 					
 					//otherwise the player damaging the entity must have permission, unless it's a dog in a pvp world
-					else if(!(GriefPrevention.instance.pvpRulesApply(event.getEntity().getWorld()) && event.getEntity().getType() == EntityType.WOLF))
+					else if(!(event.getEntity().getWorld().getPVP() && event.getEntity().getType() == EntityType.WOLF))
 					{
 						String noContainersReason = claim.allowContainers(attacker);
 						if(noContainersReason != null)

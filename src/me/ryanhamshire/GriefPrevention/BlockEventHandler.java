@@ -39,6 +39,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockDispenseEvent;
+import org.bukkit.event.block.BlockFormEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockIgniteEvent.IgniteCause;
@@ -218,7 +219,7 @@ public class BlockEventHandler implements Listener
 		    playerData.lastClaim = claim;
 		    
 			//warn about TNT not destroying claimed blocks
-            if(block.getType() == Material.TNT && !claim.areExplosivesAllowed)
+            if(block.getType() == Material.TNT && !claim.areExplosivesAllowed && playerData.siegeData == null)
             {
                 GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoTNTDamageClaims);
                 GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ClaimExplosivesAdvertisement);
@@ -264,7 +265,7 @@ public class BlockEventHandler implements Listener
 				{
 					//as long as the automatic claim overlaps another existing claim, shrink it
 					//note that since the player had permission to place the chest, at the very least, the automatic claim will include the chest
-					while(radius >= 0 && !this.dataStore.createClaim(block.getWorld(), 
+					while(radius >= 0 && playerData.getRemainingClaimBlocks() >= (radius + 1) * (radius + 1) && !this.dataStore.createClaim(block.getWorld(), 
 							block.getX() - radius, block.getX() + radius, 
 							block.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance, block.getY(), 
 							block.getZ() - radius, block.getZ() + radius, 
@@ -275,13 +276,23 @@ public class BlockEventHandler implements Listener
 						radius--;
 					}
 					
-					//notify and explain to player
-					GriefPrevention.sendMessage(player, TextMode.Success, Messages.AutomaticClaimNotification);
+					//if failure due to insufficient claim blocks available
+					if(radius < 0)
+					{
+					    GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoEnoughBlocksForChestClaim);
+					    return;
+					}
 					
-					//show the player the protected area
-					Claim newClaim = this.dataStore.getClaimAt(block.getLocation(), false, null);
-					Visualization visualization = Visualization.FromClaim(newClaim, block.getY(), VisualizationType.Claim, player.getLocation());
-					Visualization.Apply(player, visualization);
+					else
+					{
+    					//notify and explain to player
+    					GriefPrevention.sendMessage(player, TextMode.Success, Messages.AutomaticClaimNotification);
+    					
+    					//show the player the protected area
+    					Claim newClaim = this.dataStore.getClaimAt(block.getLocation(), false, null);
+    					Visualization visualization = Visualization.FromClaim(newClaim, block.getY(), VisualizationType.Claim, player.getLocation());
+    					Visualization.Apply(player, visualization);
+					}
 				}
 				
 				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
@@ -342,7 +353,8 @@ public class BlockEventHandler implements Listener
 		if(	GriefPrevention.instance.config_blockSurfaceOtherExplosions && block.getType() == Material.TNT &&
 			block.getWorld().getEnvironment() != Environment.NETHER &&
 			block.getY() > GriefPrevention.instance.getSeaLevel(block.getWorld()) - 5 &&
-			claim == null)
+			claim == null &&
+			playerData.siegeData == null)
 		{
 			GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoTNTDamageAboveSeaLevel);
 		}
@@ -668,6 +680,32 @@ public class BlockEventHandler implements Listener
                 }
             }
         }
+        
+        //otherwise if creative mode world, don't flow
+        else if(GriefPrevention.instance.creativeRulesApply(toLocation))
+        {
+            spreadEvent.setCancelled(true);
+        }
+	}
+	
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+    public void onForm(BlockFormEvent event)
+	{
+	    Block block = event.getBlock();
+	    Location location = block.getLocation();
+	    
+	    if(GriefPrevention.instance.creativeRulesApply(location))
+	    {
+	        Material type = block.getType();
+	        if(type == Material.COBBLESTONE || type == Material.OBSIDIAN || type == Material.STATIONARY_LAVA || type == Material.STATIONARY_WATER)
+	        {
+	            Claim claim = GriefPrevention.instance.dataStore.getClaimAt(location, false, null);
+	            if(claim == null)
+	            {
+	                event.setCancelled(true);
+	            }
+	        }
+	    }
 	}
 	
 	//ensures dispensers can't be used to dispense a block(like water or lava) or item across a claim boundary

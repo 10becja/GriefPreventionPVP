@@ -79,11 +79,16 @@ public class DatabaseDataStore extends DataStore
 			
 			statement.execute("CREATE TABLE IF NOT EXISTS griefprevention_nextclaimid (nextid INT(15));");
 			
-			statement.execute("CREATE TABLE IF NOT EXISTS griefprevention_claimdata (id INT(15), owner VARCHAR(50), lessercorner VARCHAR(100), greatercorner VARCHAR(100), builders VARCHAR(1000), containers VARCHAR(1000), accessors VARCHAR(1000), managers VARCHAR(1000), parentid INT(15));");
+			statement.execute("CREATE TABLE IF NOT EXISTS griefprevention_claimdata (id INT(15), owner VARCHAR(50), lessercorner VARCHAR(100), greatercorner VARCHAR(100), builders TEXT, containers TEXT, accessors TEXT, managers TEXT, parentid INT(15));");
 			
 			statement.execute("CREATE TABLE IF NOT EXISTS griefprevention_playerdata (name VARCHAR(50), lastlogin DATETIME, accruedblocks INT(15), bonusblocks INT(15));");
 			
 			statement.execute("CREATE TABLE IF NOT EXISTS griefprevention_schemaversion (version INT(15));");
+			
+			statement.execute("ALTER TABLE griefprevention_claimdata MODIFY builders TEXT;");
+			statement.execute("ALTER TABLE griefprevention_claimdata MODIFY containers TEXT;");
+			statement.execute("ALTER TABLE griefprevention_claimdata MODIFY accessors TEXT;");
+			statement.execute("ALTER TABLE griefprevention_claimdata MODIFY managers TEXT;");
 			
 			//if the next claim id table is empty, this is a brand new database which will write using the latest schema
 			//otherwise, schema version is determined by schemaversion table (or =0 if table is empty, see getSchemaVersion())
@@ -225,6 +230,7 @@ public class DatabaseDataStore extends DataStore
 		
 		ArrayList<Claim> claimsToRemove = new ArrayList<Claim>();
 		ArrayList<Claim> subdivisionsToLoad = new ArrayList<Claim>();
+		List<World> validWorlds = Bukkit.getServer().getWorlds();
 		
 		while(results.next())
 		{
@@ -242,10 +248,10 @@ public class DatabaseDataStore extends DataStore
 				try
 				{
     				lesserCornerString = results.getString("lessercorner");
-    				lesserBoundaryCorner = this.locationFromString(lesserCornerString);
+    				lesserBoundaryCorner = this.locationFromString(lesserCornerString, validWorlds);
     				
     				String greaterCornerString = results.getString("greatercorner");
-    				greaterBoundaryCorner = this.locationFromString(greaterCornerString);
+    				greaterBoundaryCorner = this.locationFromString(greaterCornerString, validWorlds);
 				}
 				catch(Exception e)
 				{
@@ -293,19 +299,19 @@ public class DatabaseDataStore extends DataStore
                 }
 	
 				String buildersString = results.getString("builders");
-				String [] builderNames = buildersString.split(";");
+				List<String> builderNames = Arrays.asList(buildersString.split(";"));
 				builderNames = this.convertNameListToUUIDList(builderNames);
 				
 				String containersString = results.getString("containers");
-				String [] containerNames = containersString.split(";");
+				List<String> containerNames = Arrays.asList(containersString.split(";"));
 				containerNames = this.convertNameListToUUIDList(containerNames);
 				
 				String accessorsString = results.getString("accessors");
-				String [] accessorNames = accessorsString.split(";");
+				List<String> accessorNames = Arrays.asList(accessorsString.split(";"));
 				accessorNames = this.convertNameListToUUIDList(accessorNames);
 				
 				String managersString = results.getString("managers");
-				String [] managerNames = managersString.split(";");
+				List<String> managerNames = Arrays.asList(managersString.split(";"));
 				managerNames = this.convertNameListToUUIDList(managerNames);
 				
 				Claim claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builderNames, containerNames, accessorNames, managerNames, claimID, false);
@@ -356,6 +362,13 @@ public class DatabaseDataStore extends DataStore
 			this.deleteClaimFromSecondaryStorage(claimsToRemove.get(i));
 		}
 		
+		if(this.getSchemaVersion() <= 2)
+		{
+		    this.refreshDataConnection();
+            statement = this.databaseConnection.createStatement();
+            statement.execute("DELETE FROM griefprevention_claimdata WHERE id='-1';");
+		}
+		
 		super.initialize();
 	}
 	
@@ -369,15 +382,8 @@ public class DatabaseDataStore extends DataStore
 			//wipe out any existing data about this claim
 			this.deleteClaimFromSecondaryStorage(claim);
 			
-			//write top level claim data to the database
+			//write claim data to the database
 			this.writeClaimData(claim);
-					
-			//for each subdivision
-			for(int i = 0; i < claim.children.size(); i++)
-			{
-				//write the subdivision's data to the database
-				this.writeClaimData(claim.children.get(i));
-			}
 		}
 		catch(SQLException e)
 		{
@@ -435,23 +441,13 @@ public class DatabaseDataStore extends DataStore
 			parentId = claim.parent.id;
 		}
 		
-		long id;
-		if(claim.id == null)
-		{
-			id = -1;
-		}
-		else
-		{
-			id = claim.id;
-		}
-		
 		try
 		{
 			this.refreshDataConnection();
 			
 			Statement statement = databaseConnection.createStatement();
 			statement.execute("INSERT INTO griefprevention_claimdata (id, owner, lessercorner, greatercorner, builders, containers, accessors, managers, parentid) VALUES(" +
-					id + ", '" +
+					claim.id + ", '" +
 					owner + "', '" +
 					lesserCornerString + "', '" +
 					greaterCornerString + "', '" +
@@ -479,11 +475,7 @@ public class DatabaseDataStore extends DataStore
 
 						
 			Statement statement = this.databaseConnection.createStatement();
-			statement.execute("DELETE FROM griefprevention_claimdata WHERE lessercorner='" + this.locationToString(claim.lesserBoundaryCorner) + "' AND greatercorner = '" + this.locationToString(claim.greaterBoundaryCorner) + "';");
-			if(claim.id != -1)
-			{
-			    statement.execute("DELETE FROM griefprevention_claimdata WHERE parentid=" + claim.id + ";");
-			}
+			statement.execute("DELETE FROM griefprevention_claimdata WHERE id='" + claim.id + "';");
 		}
 		catch(SQLException e)
 		{
@@ -626,14 +618,19 @@ public class DatabaseDataStore extends DataStore
 	
 	private synchronized void refreshDataConnection() throws SQLException
 	{
-		if(this.databaseConnection == null || this.databaseConnection.isClosed())
+		if(this.databaseConnection == null || !this.databaseConnection.isValid(3))
 		{
-			//set username/pass properties
+			if(this.databaseConnection != null && !this.databaseConnection.isClosed())
+	        {
+			    this.databaseConnection.close();
+	        }
+		    
+		    //set username/pass properties
 			Properties connectionProps = new Properties();
 			connectionProps.put("user", this.userName);
 			connectionProps.put("password", this.password);
 			connectionProps.put("autoReconnect", "true");
-			connectionProps.put("maxReconnects", "4");
+			connectionProps.put("maxReconnects", String.valueOf(Integer.MAX_VALUE));
 			
 			//establish connection
 			this.databaseConnection = DriverManager.getConnection(this.databaseUrl, connectionProps); 

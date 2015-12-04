@@ -19,9 +19,7 @@
 package me.ryanhamshire.GriefPrevention;
 
 import java.io.*;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -64,9 +62,10 @@ public abstract class DataStore
     final static String configFilePath = dataLayerFolderPath + File.separator + "config.yml";
 	final static String messagesFilePath = dataLayerFolderPath + File.separator + "messages.yml";
 	final static String softMuteFilePath = dataLayerFolderPath + File.separator + "softMute.txt";
+	final static String bannedWordsFilePath = dataLayerFolderPath + File.separator + "bannedWords.txt";
 
     //the latest version of the data schema implemented here
-	protected static final int latestSchemaVersion = 1;
+	protected static final int latestSchemaVersion = 2;
 	
 	//reading and writing the schema version to the data store
 	abstract int getSchemaVersionFromStorage();
@@ -129,6 +128,11 @@ public abstract class DataStore
             for(Claim claim : this.claims)
             {
                 this.saveClaim(claim);
+                
+                for(Claim subClaim : claim.children)
+                {
+                    this.saveClaim(subClaim);
+                }
             }
             
             //clean up any UUID conversion work
@@ -207,6 +211,31 @@ public abstract class DataStore
             }
             catch(IOException exception) {}
         }        
+    }
+	
+	List<String> loadBannedWords()
+    {
+        try
+        {
+    	    File bannedWordsFile = new File(bannedWordsFilePath);
+            if(!bannedWordsFile.exists())
+            {
+                Files.touch(bannedWordsFile);
+                String defaultWords = 
+                    "nigger\nniggers\nniger\nnigga\nnigers\nniggas\n" + 
+                    "fag\nfags\nfaggot\nfaggots\nfeggit\nfeggits\nfaggit\nfaggits\n" +
+                    "cunt\ncunts\nwhore\nwhores\nslut\nsluts\n";
+                Files.append(defaultWords, bannedWordsFile, Charset.forName("UTF-8"));
+            }
+            
+            return Files.readLines(bannedWordsFile, Charset.forName("UTF-8"));
+        }
+        catch(Exception e)
+        {
+            GriefPrevention.AddLogEntry("Failed to read from the banned words data file: " + e.toString());
+            e.printStackTrace();
+            return new ArrayList<String>();
+        }
     }
 	
 	//updates soft mute map and data file
@@ -363,7 +392,7 @@ public abstract class DataStore
 	//adds a claim to the datastore, making it an effective claim
 	synchronized void addClaim(Claim newClaim, boolean writeToStorage)
 	{
-		//subdivisions are easy
+		//subdivisions are added under their parent, not directly to the hash map for direct search
 		if(newClaim.parent != null)
 		{
 			if(!newClaim.parent.children.contains(newClaim))
@@ -425,7 +454,7 @@ public abstract class DataStore
 	}
 	
 	//turns a location string back into a location
-	Location locationFromString(String string) throws Exception
+	Location locationFromString(String string, List<World> validWorlds) throws Exception
 	{
 		//split the input string on the space
 		String [] elements = string.split(locationStringDelimiter);
@@ -442,7 +471,16 @@ public abstract class DataStore
 		String zString = elements[3];
 	    
 		//identify world the claim is in
-		World world = GriefPrevention.instance.getServer().getWorld(worldName);
+		World world = null;
+		for(World w : validWorlds)
+		{
+		    if(w.getName().equalsIgnoreCase(worldName))
+		    {
+		        world = w;
+		        break;
+		    }
+		}
+		
 		if(world == null)
 		{
 			throw new Exception("World not found: \"" + worldName + "\"");
@@ -459,15 +497,7 @@ public abstract class DataStore
 	//saves any changes to a claim to secondary storage
 	synchronized public void saveClaim(Claim claim)
 	{
-		//subdivisions don't save to their own files, but instead live in their parent claim's file
-		//so any attempt to save a subdivision will save its parent (and thus the subdivision)
-		if(claim.parent != null)
-		{
-			this.saveClaim(claim.parent);
-			return;
-		}
-		
-		//otherwise get a unique identifier for the claim which will be used to name the file on disk
+		//ensure a unique identifier for the claim which will be used to name the file on disk
 		if(claim.id == null)
 		{
 			claim.id = this.nextClaimID;
@@ -512,23 +542,20 @@ public abstract class DataStore
 	
 	synchronized void deleteClaim(Claim claim, boolean fireEvent)
 	{
-	    //subdivisions are simple - just remove them from their parent claim and save that claim
+	    //delete any children
+        for(int j = 0; j < claim.children.size(); j++)
+        {
+            this.deleteClaim(claim.children.get(j--), true);
+        }
+        
+	    //subdivisions must also be removed from the parent claim child list
 		if(claim.parent != null)
 		{
 			Claim parentClaim = claim.parent;
 			parentClaim.children.remove(claim);
-			claim.inDataStore = false;
-	        this.saveClaim(parentClaim);
-	        return;
 		}
 		
-		//delete any children
-        for(int j = 0; j < claim.children.size(); j++)
-        {
-            this.deleteClaim(claim.children.get(j), false);
-        }
-        
-        //mark as deleted so any references elsewhere can be ignored
+		//mark as deleted so any references elsewhere can be ignored
         claim.inDataStore = false;
 		
 		//remove from memory
@@ -558,8 +585,8 @@ public abstract class DataStore
 		//remove from secondary storage
 		this.deleteClaimFromSecondaryStorage(claim);
 		
-		//update player data, except for administrative claims, which have no owner
-		if(!claim.isAdminClaim())
+		//update player data
+		if(claim.ownerID != null)
 		{
 			PlayerData ownerData = this.getPlayerData(claim.ownerID);
 			for(int i = 0; i < ownerData.getClaims().size(); i++)
@@ -597,14 +624,14 @@ public abstract class DataStore
 		
 		for(Claim claim : claimsInChunk)
 		{
-		    if(claim.contains(location, ignoreHeight, false))
+		    if(claim.inDataStore && claim.contains(location, ignoreHeight, false))
 		    {
 		        //when we find a top level claim, if the location is in one of its subdivisions,
                 //return the SUBDIVISION, not the top level claim
                 for(int j = 0; j < claim.children.size(); j++)
                 {
                     Claim subdivision = claim.children.get(j);
-                    if(subdivision.contains(location, ignoreHeight, false)) return subdivision;
+                    if(subdivision.inDataStore && subdivision.contains(location, ignoreHeight, false)) return subdivision;
                 }                       
                     
                 return claim;
@@ -620,7 +647,7 @@ public abstract class DataStore
 	{
 	    for(Claim claim : this.claims)
 	    {
-	        if(claim.getID() == id) return claim;
+	        if(claim.inDataStore && claim.getID() == id) return claim;
 	    }
 	    
 	    return null;
@@ -634,10 +661,29 @@ public abstract class DataStore
 	    return Collections.unmodifiableCollection(this.claims);
 	}
 	
+	public Collection<Claim> getClaims(int chunkx, int chunkz)
+	{
+	    ArrayList<Claim> chunkClaims = this.chunksToClaimsMap.get(this.getChunkString(chunkx, chunkz));
+	    if(chunkClaims != null)
+	    {
+	        return Collections.unmodifiableCollection(chunkClaims);
+	    }
+	    else
+	    {
+	        return Collections.unmodifiableCollection(new ArrayList<Claim>());
+	    }
+	}
+	
+	//gets an almost-unique, persistent identifier string for a chunk
+    String getChunkString(int chunkx, int chunkz)
+    {
+        return String.valueOf(chunkx) + (chunkz);
+    }
+	
 	//gets an almost-unique, persistent identifier string for a chunk
 	String getChunkString(Location location)
 	{
-        return String.valueOf(location.getBlockX() >> 4) + (location.getBlockZ() >> 4);
+        return this.getChunkString(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 	
     //creates a claim.
@@ -702,10 +748,10 @@ public abstract class DataStore
 			new Location(world, smallx, smally, smallz),
 			new Location(world, bigx, bigy, bigz),
 			ownerID,
-			new String [] {}, 
-			new String [] {},
-			new String [] {},
-			new String [] {},
+			new ArrayList<String>(), 
+			new ArrayList<String>(),
+			new ArrayList<String>(),
+			new ArrayList<String>(),
 			id, false);
 		
 		newClaim.parent = parent;
@@ -714,7 +760,7 @@ public abstract class DataStore
 		ArrayList<Claim> claimsToCheck;
 		if(newClaim.parent != null)
 		{
-			claimsToCheck = newClaim.parent.children;			
+		    claimsToCheck = newClaim.parent.children;
 		}
 		else
 		{
@@ -726,7 +772,7 @@ public abstract class DataStore
 			Claim otherClaim = claimsToCheck.get(i);
 			
 			//if we find an existing claim which will be overlapped
-			if(otherClaim.overlaps(newClaim))
+			if(otherClaim.id != newClaim.id && otherClaim.inDataStore && otherClaim.overlaps(newClaim))
 			{
 				//result = fail, return conflicting claim
 				result.succeeded = false;
@@ -821,27 +867,18 @@ public abstract class DataStore
 		
 		if(claim.parent != null) claim = claim.parent;
 		
-		//note any subdivisions
-		ArrayList<Claim> subdivisions = new ArrayList<Claim>(claim.children);
-		
-		//delete the claim
-		this.deleteClaim(claim, false);
-		
-		//re-create it at the new depth
+		//adjust to new depth
 		claim.lesserBoundaryCorner.setY(newDepth);
 		claim.greaterBoundaryCorner.setY(newDepth);
-		
-		//re-add the subdivisions (deleteClaim() removed them) with the new depth
-		for(Claim subdivision : subdivisions)
+		for(Claim subdivision : claim.children)
 		{
 		    subdivision.lesserBoundaryCorner.setY(newDepth);
             subdivision.greaterBoundaryCorner.setY(newDepth);
-		    subdivision.parent = claim;
-		    this.addClaim(subdivision, false);
+		    this.saveClaim(subdivision);
 		}
 		
 		//save changes
-		this.addClaim(claim, true);
+		this.saveClaim(claim);
 	}
 
 	//starts a siege on a claim
@@ -1084,12 +1121,6 @@ public abstract class DataStore
 	//see CreateClaim() for details on return value
 	synchronized public CreateClaimResult resizeClaim(Claim claim, int newx1, int newx2, int newy1, int newy2, int newz1, int newz2, Player resizingPlayer)
 	{
-		//note any subdivisions before deleting the claim
-	    ArrayList<Claim> subdivisions = new ArrayList<Claim>(claim.children);
-	    
-	    //remove old claim
-		this.deleteClaim(claim, false);					
-		
 		//try to create this new claim, ignoring the original when checking for overlap
 		CreateClaimResult result = this.createClaim(claim.getLesserBoundaryCorner().getWorld(), newx1, newx2, newy1, newy2, newz1, newz2, claim.ownerID, claim.parent, claim.id, resizingPlayer);
 		
@@ -1118,20 +1149,17 @@ public abstract class DataStore
 			}
 			
 			//restore subdivisions
-			for(Claim subdivision : subdivisions)
+			for(Claim subdivision : claim.children)
 			{
 			    subdivision.parent = result.claim;
-			    this.addClaim(subdivision, false);
+			    result.claim.children.add(subdivision);
 			}
 			
 			//save those changes
 			this.saveClaim(result.claim);
-		}
-		
-		else
-		{
-			//put original claim back
-			this.addClaim(claim, true);
+			
+			//make original claim ineffective (it's still in the hash map, so let's make it ignored)
+			claim.inDataStore = false;
 		}
 		
 		return result;
@@ -1249,7 +1277,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.SiegeNoShovel, "You can't use your shovel tool while involved in a siege.", null);
 		this.addDefault(defaults, Messages.RestoreNaturePlayerInChunk, "Unable to restore.  {0} is in that chunk.", "0: nearby player");
 		this.addDefault(defaults, Messages.NoCreateClaimPermission, "You don't have permission to claim land.", null);
-		this.addDefault(defaults, Messages.ResizeClaimTooSmall, "This new size would be too small.  Claims must be at least {0} x {0}.", "0: minimum claim size");
+		this.addDefault(defaults, Messages.ResizeClaimTooNarrow, "This new size would be too small.  Claims must be at least {0} blocks wide.", "0: minimum claim width");
 		this.addDefault(defaults, Messages.ResizeNeedMoreBlocks, "You don't have enough blocks for this size.  You need {0} more.", "0: how many needed");
 		this.addDefault(defaults, Messages.ClaimResizeSuccess, "Claim resized.  {0} available claim blocks remaining.", "0: remaining blocks");
 		this.addDefault(defaults, Messages.ResizeFailOverlap, "Can't resize here because it would overlap another nearby claim.", null);
@@ -1262,7 +1290,8 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.CreateClaimFailOverlapOtherPlayer, "You can't create a claim here because it would overlap {0}'s claim.", "0: other claim owner");
 		this.addDefault(defaults, Messages.ClaimsDisabledWorld, "Land claims are disabled in this world.", null);
 		this.addDefault(defaults, Messages.ClaimStart, "Claim corner set!  Use the shovel again at the opposite corner to claim a rectangle of land.  To cancel, put your shovel away.", null);
-		this.addDefault(defaults, Messages.NewClaimTooSmall, "This claim would be too small.  Any claim must be at least {0} x {0}.", "0: minimum claim size");
+		this.addDefault(defaults, Messages.NewClaimTooNarrow, "This claim would be too small.  Any claim must be at least {0} blocks wide.", "0: minimum claim width");
+		this.addDefault(defaults, Messages.ResizeClaimInsufficientArea, "This claim would be too small.  Any claim must use at least {0} total claim blocks.", "0: minimum claim area");
 		this.addDefault(defaults, Messages.CreateClaimInsufficientBlocks, "You don't have enough blocks to claim that entire area.  You need {0} more blocks.", "0: additional blocks needed");
 		this.addDefault(defaults, Messages.AbandonClaimAdvertisement, "To delete another claim and free up some blocks, use /AbandonClaim.", null);
 		this.addDefault(defaults, Messages.CreateClaimFailOverlapShort, "Your selected area overlaps an existing claim.", null);
@@ -1361,6 +1390,8 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.NoClaimDuringPvP, "You can't claim lands during PvP combat.", null);
 		this.addDefault(defaults, Messages.UntrustAllOwnerOnly, "Only the claim owner can clear all its permissions.", null);
 		this.addDefault(defaults, Messages.ManagersDontUntrustManagers, "Only the claim owner can demote a manager.", null);
+		this.addDefault(defaults, Messages.PlayerNotIgnorable, "You can't ignore that player.", null);
+		this.addDefault(defaults, Messages.NoEnoughBlocksForChestClaim, "Because you don't have any claim blocks available, no automatic land claim was created for you.  You can use /ClaimsList to monitor your available claim block total.", null);
 		
 		this.addDefault(defaults, Messages.BookAuthor, "BigScary", null);
 		this.addDefault(defaults, Messages.BookTitle, "How to Claim Land", null);
@@ -1369,6 +1400,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.BookTools, "Our claim tools are {0} and {1}.", "0: claim modification tool name; 1:claim information tool name");
 		this.addDefault(defaults, Messages.BookDisabledChestClaims, "  On this server, placing a chest will NOT claim land for you.", null);
 		this.addDefault(defaults, Messages.BookUsefulCommands, "Useful Commands:", null);
+		this.addDefault(defaults, Messages.NoProfanity, "Please moderate your language.", null);
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));
@@ -1434,7 +1466,7 @@ public abstract class DataStore
 	
 	//used in updating the data schema from 0 to 1.
 	//converts player names in a list to uuids
-	protected String[] convertNameListToUUIDList(String[] names)
+	protected List<String> convertNameListToUUIDList(List<String> names)
 	{
 	    //doesn't apply after schema has been updated to version 1
 	    if(this.getSchemaVersion() >= 1) return names;
@@ -1466,14 +1498,7 @@ public abstract class DataStore
 	        }
 	    }
 	    
-	    //return final result of conversion
-	    String [] resultArray = new String [resultNames.size()];
-	    for(int i = 0; i < resultNames.size(); i++)
-	    {
-	        resultArray[i] = resultNames.get(i);
-	    }
-	    
-	    return resultArray;
+	    return resultNames;
     }
 	
 	abstract void close();
