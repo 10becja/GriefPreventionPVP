@@ -1951,6 +1951,7 @@ class PlayerEventHandler implements Listener
 						long daysElapsed = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24); 
 						
 						GriefPrevention.sendMessage(player, TextMode.Info, Messages.PlayerOfflineTime, String.valueOf(daysElapsed));
+						GriefPrevention.sendMessage(player, TextMode.Info, "Claim ID: " + claim.getID());
 						
 						//drop the data we just loaded, if the player isn't online
 						if(GriefPrevention.instance.getServer().getPlayer(claim.ownerID) == null)
