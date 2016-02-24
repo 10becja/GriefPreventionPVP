@@ -236,6 +236,7 @@ public class FlatFileDataStore extends DataStore
                 }
                 
                 BufferedReader inStream = null;
+                String lesserCornerString = "";
                 try
                 {                   
                     Claim topLevelClaim = null;
@@ -259,7 +260,8 @@ public class FlatFileDataStore extends DataStore
                         }
                         
                         //first line is lesser boundary corner location
-                        Location lesserBoundaryCorner = this.locationFromString(line, validWorlds);
+                        lesserCornerString = line;
+                        Location lesserBoundaryCorner = this.locationFromString(lesserCornerString, validWorlds);
                         
                         //second line is greater boundary corner location
                         line = inStream.readLine();
@@ -360,10 +362,11 @@ public class FlatFileDataStore extends DataStore
                 //if there's any problem with the file's content, log an error message and skip it
                 catch(Exception e)
                 {
-                    if(e.getMessage().contains("World not found"))
+                    if(e.getMessage() != null && e.getMessage().contains("World not found"))
                     {
+                        GriefPrevention.AddLogEntry("Failed to load a claim " + files[i].getName() + " because its world isn't loaded (yet?).  Please delete the claim file or contact the GriefPrevention developer with information about which plugin(s) you're using to load or create worlds.  " + lesserCornerString);
                         inStream.close();
-                        files[i].delete();
+                        
                     }
                     else
                     {

@@ -19,9 +19,7 @@
 package me.ryanhamshire.GriefPrevention;
 import java.net.InetAddress;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
-import java.util.Set;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,7 +33,6 @@ import me.ryanhamshire.GriefPrevention.Visualization;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.entity.Player;
 
 //holds all of GriefPrevention's player-tied data
 public class PlayerData 
@@ -147,6 +144,9 @@ public class PlayerData
 
     //profanity warning, once per play session
 	boolean profanityWarned = false;
+
+    //true when the player's IP address was counted against the re-use limit when he joined
+	boolean ipLimited = false;
 	
 	//whether or not this player is "in" pvp combat
 	public boolean inPvpCombat()

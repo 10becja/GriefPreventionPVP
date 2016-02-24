@@ -1,6 +1,6 @@
 /*
     GriefPrevention Server Plugin for Minecraft
-    Copyright (C) 2012 Ryan Hamshire
+    Copyright (C) 2015 Ryan Hamshire
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,14 +18,12 @@
 
 package me.ryanhamshire.GriefPrevention;
 
-import org.bukkit.ChatColor;
-
-//just a few constants for chat color codes
-public class TextMode 
-{	
-	final static ChatColor Info = ChatColor.AQUA;
-	final static ChatColor Instr = ChatColor.YELLOW;
-	final static ChatColor Warn = ChatColor.GOLD;
-	final static ChatColor Err = ChatColor.RED;
-	final static ChatColor Success = ChatColor.GREEN;
+public enum CustomLogEntryTypes
+{
+    SocialActivity,
+    SuspiciousActivity,
+    AdminActivity,
+    Debug,
+    Exception,
+    MutedChat
 }

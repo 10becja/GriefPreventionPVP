@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.UUID;
 
 import me.ryanhamshire.GriefPrevention.events.PreventPvPEvent;
+import me.ryanhamshire.GriefPrevention.events.ProtectDeathDropsEvent;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -50,11 +51,12 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Rabbit;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.ThrownPotion;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WaterMob;
-
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -100,7 +102,7 @@ public class EntityEventHandler implements Listener
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onEntityChangeBLock(EntityChangeBlockEvent event)
 	{
-	    if(!GriefPrevention.instance.config_endermenMoveBlocks && event.getEntityType() == EntityType.ENDERMAN)
+		if(!GriefPrevention.instance.config_endermenMoveBlocks && event.getEntityType() == EntityType.ENDERMAN)
 		{
 			event.setCancelled(true);
 		}
@@ -165,6 +167,7 @@ public class EntityEventHandler implements Listener
 		             {
 		                 //when not allowed, drop as item instead of forming a block
 		                 event.setCancelled(true);
+		                 @SuppressWarnings("deprecation")
 		                 ItemStack itemStack = new ItemStack(entity.getMaterial(), 1, entity.getBlockData());
 		                 Item item = block.getWorld().dropItem(entity.getLocation(), itemStack);
 		                 item.setVelocity(new Vector());
@@ -237,6 +240,7 @@ public class EntityEventHandler implements Listener
         this.handleExplosion(explodeEvent.getBlock().getLocation(), null, explodeEvent.blockList());
     }
     
+    @SuppressWarnings("deprecation")
     void handleExplosion(Location location, Entity entity, List<Block> blocks)
     {
         //only applies to claims-enabled worlds
@@ -410,7 +414,7 @@ public class EntityEventHandler implements Listener
 
 		//otherwise, just apply the limit on total entities per claim (and no spawning in the wilderness!)
 		Claim claim = this.dataStore.getClaimAt(event.getLocation(), false, null);
-		if(claim == null || claim.allowMoreEntities() != null)
+		if(claim == null || claim.allowMoreEntities(true) != null)
 		{
 			event.setCancelled(true);
 			return;
@@ -460,20 +464,26 @@ public class EntityEventHandler implements Listener
         if((isPvPWorld && GriefPrevention.instance.config_lockDeathDropsInPvpWorlds) || 
            (!isPvPWorld && GriefPrevention.instance.config_lockDeathDropsInNonPvpWorlds))
         {
-            //remember information about these drops so that they can be marked when they spawn as items
-            long expirationTime = System.currentTimeMillis() + 3000;  //now + 3 seconds
-            Location deathLocation = player.getLocation();
-            UUID playerID = player.getUniqueId();
-            List<ItemStack> drops = event.getDrops();
-            for(ItemStack stack : drops)
+            Claim claim = this.dataStore.getClaimAt(player.getLocation(), false, playerData.lastClaim);
+            ProtectDeathDropsEvent protectionEvent = new ProtectDeathDropsEvent(claim);
+            Bukkit.getPluginManager().callEvent(protectionEvent);
+            if(!protectionEvent.isCancelled())
             {
-                GriefPrevention.instance.pendingItemWatchList.add(
-                       new PendingItemProtection(deathLocation, playerID, expirationTime, stack));
+                //remember information about these drops so that they can be marked when they spawn as items
+                long expirationTime = System.currentTimeMillis() + 3000;  //now + 3 seconds
+                Location deathLocation = player.getLocation();
+                UUID playerID = player.getUniqueId();
+                List<ItemStack> drops = event.getDrops();
+                for(ItemStack stack : drops)
+                {
+                    GriefPrevention.instance.pendingItemWatchList.add(
+                           new PendingItemProtection(deathLocation, playerID, expirationTime, stack));
+                }
+                
+                //allow the player to receive a message about how to unlock any drops
+                playerData.dropsAreUnlocked = false;
+                playerData.receivedDropUnlockAdvertisement = false;
             }
-            
-            //allow the player to receive a message about how to unlock any drops
-            playerData.dropsAreUnlocked = false;
-            playerData.receivedDropUnlockAdvertisement = false;
         }
 	}
 	
@@ -565,7 +575,7 @@ public class EntityEventHandler implements Listener
 			Claim claim = this.dataStore.getClaimAt(event.getBlock().getLocation(), false, playerData.lastClaim);
 			if(claim == null) return;
 			
-			String noEntitiesReason = claim.allowMoreEntities();
+			String noEntitiesReason = claim.allowMoreEntities(false);
 			if(noEntitiesReason != null)
 			{
 				GriefPrevention.sendMessage(event.getPlayer(), TextMode.Err, noEntitiesReason);
@@ -582,8 +592,24 @@ public class EntityEventHandler implements Listener
 		//monsters are never protected
 		if(event.getEntity() instanceof Monster) return;
 		
+		//nor are killer bunnies
+		if(event.getEntity() instanceof Rabbit)
+		{
+			Rabbit rabbit = (Rabbit)event.getEntity();
+			if(rabbit.getRabbitType() == Rabbit.Type.THE_KILLER_BUNNY) return;
+		}
+		
 		//horse protections can be disabled
 		if(event.getEntity() instanceof Horse && !GriefPrevention.instance.config_claims_protectHorses) return;
+		
+		//protected death loot can't be destroyed, only picked up or despawned due to expiration
+		if(event.getEntityType() == EntityType.DROPPED_ITEM)
+		{
+		    if(event.getEntity().hasMetadata("GP_ITEMOWNER"))
+	        {
+		        event.setCancelled(true);
+	        }
+		}
 		
 		//protect pets from environmental damage types which could be easily caused by griefers
         if(event.getEntity() instanceof Tameable && !GriefPrevention.instance.pvpRulesApply(event.getEntity().getWorld()))
@@ -842,8 +868,8 @@ public class EntityEventHandler implements Listener
     		                PlayerData attackerData = this.dataStore.getPlayerData(attacker.getUniqueId());
     		                if(attackerData.ignoreClaims) return;
     		               
-    		                //otherwise disallow in non-pvp worlds
-    		                if(!GriefPrevention.instance.pvpRulesApply(subEvent.getEntity().getLocation().getWorld()))
+    		                //otherwise disallow in non-pvp worlds (and also pvp worlds if configured to do so)
+    		                if(!GriefPrevention.instance.pvpRulesApply(subEvent.getEntity().getLocation().getWorld()) || (GriefPrevention.instance.config_pvp_protectPets && subEvent.getEntityType() != EntityType.WOLF))
                             {
     		                    OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID); 
                                 String ownerName = owner.getName();
@@ -870,7 +896,7 @@ public class EntityEventHandler implements Listener
 				PlayerData playerData = null;
 				
 				//if not a player or an explosive, allow
-				if(attacker == null && damageSource != null && !(damageSource instanceof Projectile) && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive))
+				if(attacker == null && damageSource != null && !(damageSource instanceof Projectile) && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive) && !(damageSource instanceof ExplosiveMinecart))
 				{
 					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
 					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))

@@ -50,7 +50,8 @@ class RestoreNatureProcessingTask implements Runnable
 	private ArrayList<Integer> notAllowedToHang;    //natural blocks which don't naturally hang in their air
 	private ArrayList<Integer> playerBlocks;		//a "complete" list of player-placed blocks.  MUST BE MAINTAINED as patches introduce more
 	
-	public RestoreNatureProcessingTask(BlockSnapshot[][][] snapshots, int miny, Environment environment, Biome biome, Location lesserBoundaryCorner, Location greaterBoundaryCorner, int seaLevel, boolean aggressiveMode, boolean creativeMode, Player player)
+	@SuppressWarnings("deprecation")
+    public RestoreNatureProcessingTask(BlockSnapshot[][][] snapshots, int miny, Environment environment, Biome biome, Location lesserBoundaryCorner, Location greaterBoundaryCorner, int seaLevel, boolean aggressiveMode, boolean creativeMode, Player player)
 	{
 		this.snapshots = snapshots;
 		this.miny = miny;
@@ -99,6 +100,7 @@ class RestoreNatureProcessingTask implements Runnable
 		if(this.aggressiveMode)
 		{
 			this.playerBlocks.add(Material.LEAVES.getId());
+			this.playerBlocks.add(Material.LEAVES_2.getId());
 			this.playerBlocks.add(Material.LOG.getId());
 			this.playerBlocks.add(Material.LOG_2.getId());
 			this.playerBlocks.add(Material.VINE.getId());
@@ -148,7 +150,8 @@ class RestoreNatureProcessingTask implements Runnable
 		GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task);
 	}
 	
-	private void removePlayerLeaves()
+	@SuppressWarnings("deprecation")
+    private void removePlayerLeaves()
 	{
 		if(this.seaLevel < 1) return;
 	    
@@ -170,7 +173,8 @@ class RestoreNatureProcessingTask implements Runnable
 	}
 
 	//converts sandstone adjacent to sand to sand, and any other sandstone to air
-	private void removeSandstone()
+	@SuppressWarnings("deprecation")
+    private void removeSandstone()
 	{
 		for(int x = 1; x < snapshots.length - 1; x++)
 		{
@@ -209,7 +213,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private void reduceStone()
+	@SuppressWarnings("deprecation")
+    private void reduceStone()
 	{
 		if(this.seaLevel < 1) return;
 	    
@@ -256,7 +261,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private void reduceLogs()
+	@SuppressWarnings("deprecation")
+    private void reduceLogs()
 	{
 		if(this.seaLevel < 1) return;
 	    
@@ -294,7 +300,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private void removePlayerBlocks()
+	@SuppressWarnings("deprecation")
+    private void removePlayerBlocks()
 	{
 		int miny = this.miny;
 		if(miny < 1) miny = 1;
@@ -316,7 +323,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}				
 	}
 	
-	private void removeHanging()
+	@SuppressWarnings("deprecation")
+    private void removeHanging()
 	{
 		int miny = this.miny;
 		if(miny < 1) miny = 1;
@@ -342,7 +350,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private void removeWallsAndTowers()
+	@SuppressWarnings("deprecation")
+    private void removeWallsAndTowers()
 	{
 		int [] excludedBlocksArray = new int []
 		{
@@ -395,7 +404,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}while(changed);
 	}
 	
-	private void coverSurfaceStone()
+	@SuppressWarnings("deprecation")
+    private void coverSurfaceStone()
 	{
 		for(int x = 1; x < snapshots.length - 1; x++)
 		{
@@ -419,7 +429,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private void fillHolesAndTrenches()
+	@SuppressWarnings("deprecation")
+    private void fillHolesAndTrenches()
 	{
 		ArrayList<Integer> fillableBlocks = new ArrayList<Integer>();
 		fillableBlocks.add(Material.AIR.getId());
@@ -477,7 +488,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}while(changed);
 	}	
 	
-	private void fixWater()
+	@SuppressWarnings("deprecation")
+    private void fixWater()
 	{
 		int miny = this.miny;
 		if(miny < 1) miny = 1;
@@ -561,7 +573,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}while(changed);
 	}
 	
-	private void removeDumpedFluids()
+	@SuppressWarnings("deprecation")
+    private void removeDumpedFluids()
 	{
 		if(this.seaLevel < 1) return;
 	    
@@ -585,7 +598,8 @@ class RestoreNatureProcessingTask implements Runnable
 		}
 	}
 	
-	private int highestY(int x, int z, boolean ignoreLeaves)
+	@SuppressWarnings("deprecation")
+    private int highestY(int x, int z, boolean ignoreLeaves)
 	{
 		int y;
 		for(y = snapshots[0].length - 1; y > 0; y--)
@@ -606,7 +620,8 @@ class RestoreNatureProcessingTask implements Runnable
 		return y;
 	}
 	
-	static ArrayList<Integer> getPlayerBlocks(Environment environment, Biome biome) 
+	@SuppressWarnings("deprecation")
+    static ArrayList<Integer> getPlayerBlocks(Environment environment, Biome biome) 
 	{
 		//NOTE on this list.  why not make a list of natural blocks?
 		//answer: better to leave a few player blocks than to remove too many natural blocks.  remember we're "restoring nature"
@@ -702,7 +717,53 @@ class RestoreNatureProcessingTask implements Runnable
 		playerBlocks.add(Material.WOOD_BUTTON.getId());
 		playerBlocks.add(Material.SKULL.getId());
 		playerBlocks.add(Material.ANVIL.getId());
-		
+		playerBlocks.add(Material.SPONGE.getId());
+		playerBlocks.add(Material.DOUBLE_STONE_SLAB2.getId());
+		playerBlocks.add(Material.STAINED_GLASS.getId());
+		playerBlocks.add(Material.STAINED_GLASS_PANE.getId());
+		playerBlocks.add(Material.BANNER.getId());
+		playerBlocks.add(Material.STANDING_BANNER.getId());
+		playerBlocks.add(Material.ACACIA_STAIRS.getId());
+		playerBlocks.add(Material.BIRCH_WOOD_STAIRS.getId());
+		playerBlocks.add(Material.DARK_OAK_STAIRS.getId());
+		playerBlocks.add(Material.TRAPPED_CHEST.getId());
+		playerBlocks.add(Material.GOLD_PLATE.getId());
+		playerBlocks.add(Material.IRON_PLATE.getId());
+		playerBlocks.add(Material.REDSTONE_COMPARATOR_OFF.getId());
+		playerBlocks.add(Material.REDSTONE_COMPARATOR_ON.getId());
+		playerBlocks.add(Material.DAYLIGHT_DETECTOR.getId());
+		playerBlocks.add(Material.DAYLIGHT_DETECTOR_INVERTED.getId());
+		playerBlocks.add(Material.REDSTONE_BLOCK.getId());
+		playerBlocks.add(Material.HOPPER.getId());
+		playerBlocks.add(Material.QUARTZ_BLOCK.getId());
+		playerBlocks.add(Material.QUARTZ_STAIRS.getId());
+		playerBlocks.add(Material.DROPPER.getId());
+		playerBlocks.add(Material.SLIME_BLOCK.getId());
+		playerBlocks.add(Material.IRON_TRAPDOOR.getId());
+		playerBlocks.add(Material.PRISMARINE.getId());
+		playerBlocks.add(Material.HAY_BLOCK.getId());
+		playerBlocks.add(Material.CARPET.getId());
+		playerBlocks.add(Material.SEA_LANTERN.getId());
+		playerBlocks.add(Material.RED_SANDSTONE_STAIRS.getId());
+		playerBlocks.add(Material.STONE_SLAB2.getId());
+		playerBlocks.add(Material.ACACIA_FENCE.getId());
+		playerBlocks.add(Material.ACACIA_FENCE_GATE.getId());
+		playerBlocks.add(Material.BIRCH_FENCE.getId());
+		playerBlocks.add(Material.BIRCH_FENCE_GATE.getId());
+		playerBlocks.add(Material.DARK_OAK_FENCE.getId());
+		playerBlocks.add(Material.DARK_OAK_FENCE_GATE.getId());
+		playerBlocks.add(Material.JUNGLE_FENCE.getId());
+        playerBlocks.add(Material.JUNGLE_FENCE_GATE.getId());
+        playerBlocks.add(Material.SPRUCE_FENCE.getId());
+        playerBlocks.add(Material.SPRUCE_FENCE_GATE.getId());
+        playerBlocks.add(Material.ACACIA_DOOR.getId());
+        playerBlocks.add(Material.SPRUCE_DOOR.getId());
+        playerBlocks.add(Material.DARK_OAK_DOOR.getId());
+        playerBlocks.add(Material.JUNGLE_DOOR.getId());
+        playerBlocks.add(Material.BIRCH_DOOR.getId());
+        playerBlocks.add(Material.COAL_BLOCK.getId());
+        playerBlocks.add(Material.REDSTONE_LAMP_OFF.getId());
+        playerBlocks.add(Material.REDSTONE_LAMP_ON.getId());
 		
 		//these are unnatural in the standard world, but not in the nether
 		if(environment != Environment.NETHER)
@@ -727,6 +788,7 @@ class RestoreNatureProcessingTask implements Runnable
 		if(biome == Biome.DESERT || biome == Biome.DESERT_HILLS || biome == Biome.BEACH || environment != Environment.NORMAL)
 		{
 			playerBlocks.add(Material.LEAVES.getId());
+			playerBlocks.add(Material.LEAVES_2.getId());
 			playerBlocks.add(Material.LOG.getId());
 			playerBlocks.add(Material.LOG_2.getId());
 		}

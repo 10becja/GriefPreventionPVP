@@ -27,6 +27,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Hanging;
 import org.bukkit.entity.Player;
 
 //this main thread task takes the output from the RestoreNatureProcessingTask\
@@ -54,7 +55,8 @@ class RestoreNatureExecutionTask implements Runnable
 		this.player = player;
 	}
 	
-	@Override
+	@SuppressWarnings("deprecation")
+    @Override
 	public void run()
 	{
 		//apply changes to the world, but ONLY to unclaimed blocks
@@ -93,8 +95,8 @@ class RestoreNatureExecutionTask implements Runnable
 			Entity entity = entities[i];
 			if(!(entity instanceof Player || entity instanceof Animals))
 			{
-				//only remove entities not inside a claim
-				if(GriefPrevention.instance.dataStore.getClaimAt(entity.getLocation(), false, null) == null)
+				//hanging entities (paintings, item frames) are protected when they're in land claims
+				if(!(entity instanceof Hanging) || GriefPrevention.instance.dataStore.getClaimAt(entity.getLocation(), false, null) == null)
 				{
 					//everything else is removed
 					entity.remove();

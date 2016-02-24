@@ -29,7 +29,9 @@ import me.ryanhamshire.GriefPrevention.events.ClaimDeletedEvent;
 import org.bukkit.*;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.bukkit.inventory.ItemStack;
 
 import com.google.common.io.Files;
@@ -45,7 +47,7 @@ public abstract class DataStore
 	
 	//in-memory cache for claim data
 	ArrayList<Claim> claims = new ArrayList<Claim>();
-	ConcurrentHashMap<String, ArrayList<Claim>> chunksToClaimsMap = new ConcurrentHashMap<String, ArrayList<Claim>>();
+	ConcurrentHashMap<Long, ArrayList<Claim>> chunksToClaimsMap = new ConcurrentHashMap<Long, ArrayList<Claim>>();
 	
 	//in-memory cache for messages
 	private String [] messages;
@@ -343,7 +345,9 @@ public abstract class DataStore
 	
 	class NoTransferException extends Exception
 	{
-	    NoTransferException(String message)
+        private static final long serialVersionUID = 1L;
+
+        NoTransferException(String message)
 	    {
 	        super(message);
 	    }
@@ -409,14 +413,14 @@ public abstract class DataStore
 		
 		//add it and mark it as added
 		this.claims.add(newClaim);
-		ArrayList<String> chunkStrings = newClaim.getChunkStrings();
-		for(String chunkString : chunkStrings)
+		ArrayList<Long> chunkHashes = newClaim.getChunkHashes();
+		for(Long chunkHash : chunkHashes)
 		{
-		    ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkString);
+		    ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkHash);
 		    if(claimsInChunk == null)
 		    {
 		        claimsInChunk = new ArrayList<Claim>();
-		        this.chunksToClaimsMap.put(chunkString, claimsInChunk);
+		        this.chunksToClaimsMap.put(chunkHash, claimsInChunk);
 		    }
 		    
 		    claimsInChunk.add(newClaim);
@@ -498,7 +502,7 @@ public abstract class DataStore
 	synchronized public void saveClaim(Claim claim)
 	{
 		//ensure a unique identifier for the claim which will be used to name the file on disk
-		if(claim.id == null)
+		if(claim.id == null || claim.id == -1)
 		{
 			claim.id = this.nextClaimID;
 			this.incrementNextClaimID();
@@ -537,10 +541,16 @@ public abstract class DataStore
 	//deletes a claim or subdivision
     synchronized public void deleteClaim(Claim claim)
     {
-        this.deleteClaim(claim, true);
+        this.deleteClaim(claim, true, false);
+    }
+    
+    //deletes a claim or subdivision
+    synchronized public void deleteClaim(Claim claim, boolean releasePets)
+    {
+        this.deleteClaim(claim, true, releasePets);
     }
 	
-	synchronized void deleteClaim(Claim claim, boolean fireEvent)
+	synchronized void deleteClaim(Claim claim, boolean fireEvent, boolean releasePets)
 	{
 	    //delete any children
         for(int j = 0; j < claim.children.size(); j++)
@@ -568,10 +578,10 @@ public abstract class DataStore
 			}
 		}
 		
-		ArrayList<String> chunkStrings = claim.getChunkStrings();
-        for(String chunkString : chunkStrings)
+		ArrayList<Long> chunkHashes = claim.getChunkHashes();
+        for(Long chunkHash : chunkHashes)
         {
-            ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkString);
+            ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkHash);
             for(int j = 0; j < claimsInChunk.size(); j++)
             {
                 if(claimsInChunk.get(j).id.equals(claim.id))
@@ -605,6 +615,26 @@ public abstract class DataStore
 		    ClaimDeletedEvent ev = new ClaimDeletedEvent(claim);
             Bukkit.getPluginManager().callEvent(ev);
 		}
+		
+		//optionally set any pets free which belong to the claim owner
+		if(releasePets && claim.ownerID != null && claim.parent == null)
+        {
+            for(Chunk chunk : claim.getChunks())
+            {
+                Entity [] entities = chunk.getEntities();
+                for(Entity entity : entities)
+                {
+                    if(entity instanceof Tameable)
+                    {
+                        Tameable pet = (Tameable)entity;
+                        if(pet.isTamed() && pet.getOwner().getUniqueId().equals(claim.ownerID))
+                        {
+                            pet.setTamed(false);
+                        }
+                    }
+                }
+            }
+        }
 	}
 	
 	abstract void deleteClaimFromSecondaryStorage(Claim claim);
@@ -618,7 +648,7 @@ public abstract class DataStore
 		if(cachedClaim != null && cachedClaim.inDataStore && cachedClaim.contains(location, ignoreHeight, true)) return cachedClaim;
 		
 		//find a top level claim
-		String chunkID = this.getChunkString(location);
+		Long chunkID = getChunkHash(location);
 		ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkID);
 		if(claimsInChunk == null) return null;
 		
@@ -663,7 +693,7 @@ public abstract class DataStore
 	
 	public Collection<Claim> getClaims(int chunkx, int chunkz)
 	{
-	    ArrayList<Claim> chunkClaims = this.chunksToClaimsMap.get(this.getChunkString(chunkx, chunkz));
+	    ArrayList<Claim> chunkClaims = this.chunksToClaimsMap.get(getChunkHash(chunkx, chunkz));
 	    if(chunkClaims != null)
 	    {
 	        return Collections.unmodifiableCollection(chunkClaims);
@@ -674,16 +704,16 @@ public abstract class DataStore
 	    }
 	}
 	
-	//gets an almost-unique, persistent identifier string for a chunk
-    String getChunkString(int chunkx, int chunkz)
+	//gets an almost-unique, persistent identifier for a chunk
+    static Long getChunkHash(long chunkx, long chunkz)
     {
-        return String.valueOf(chunkx) + (chunkz);
+        return (chunkz ^ (chunkx << 32));
     }
 	
-	//gets an almost-unique, persistent identifier string for a chunk
-	String getChunkString(Location location)
+	//gets an almost-unique, persistent identifier for a chunk
+	static Long getChunkHash(Location location)
 	{
-        return this.getChunkString(location.getBlockX() >> 4, location.getBlockZ() >> 4);
+        return getChunkHash(location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 	
     //creates a claim.
@@ -702,6 +732,9 @@ public abstract class DataStore
 		CreateClaimResult result = new CreateClaimResult();
 		
 		int smallx, bigx, smally, bigy, smallz, bigz;
+		
+		if(y1 < GriefPrevention.instance.config_claims_maxDepth) y1 = GriefPrevention.instance.config_claims_maxDepth;
+		if(y2 < GriefPrevention.instance.config_claims_maxDepth) y2 = GriefPrevention.instance.config_claims_maxDepth;
 
 		//determine small versus big inputs
 		if(x1 < x2)
@@ -1165,6 +1198,164 @@ public abstract class DataStore
 		return result;
 	}
 	
+	void resizeClaimWithChecks(Player player, PlayerData playerData, int newx1, int newx2, int newy1, int newy2, int newz1, int newz2)
+    {
+	    //for top level claims, apply size rules and claim blocks requirement
+        if(playerData.claimResizing.parent == null)
+        {               
+            //measure new claim, apply size rules
+            int newWidth = (Math.abs(newx1 - newx2) + 1);
+            int newHeight = (Math.abs(newz1 - newz2) + 1);
+            boolean smaller = newWidth < playerData.claimResizing.getWidth() || newHeight < playerData.claimResizing.getHeight();
+                    
+            if(!player.hasPermission("griefprevention.adminclaims") && !playerData.claimResizing.isAdminClaim() && smaller)
+            {
+                if(newWidth < GriefPrevention.instance.config_claims_minWidth || newHeight < GriefPrevention.instance.config_claims_minWidth)
+                {
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeClaimTooNarrow, String.valueOf(GriefPrevention.instance.config_claims_minWidth));
+                    return;
+                }
+                
+                int newArea = newWidth * newHeight;
+                if(newArea < GriefPrevention.instance.config_claims_minArea)
+                {
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeClaimInsufficientArea, String.valueOf(GriefPrevention.instance.config_claims_minArea));
+                    return;
+                }
+            }
+            
+            //make sure player has enough blocks to make up the difference
+            if(!playerData.claimResizing.isAdminClaim() && player.getName().equals(playerData.claimResizing.getOwnerName()))
+            {
+                int newArea =  newWidth * newHeight;
+                int blocksRemainingAfter = playerData.getRemainingClaimBlocks() + playerData.claimResizing.getArea() - newArea;
+                
+                if(blocksRemainingAfter < 0)
+                {
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeNeedMoreBlocks, String.valueOf(Math.abs(blocksRemainingAfter)));
+                    this.tryAdvertiseAdminAlternatives(player);
+                    return;
+                }
+            }
+        }
+        
+        //special rule for making a top-level claim smaller.  to check this, verifying the old claim's corners are inside the new claim's boundaries.
+        //rule: in any mode, shrinking a claim removes any surface fluids
+        Claim oldClaim = playerData.claimResizing;
+        boolean smaller = false;
+        if(oldClaim.parent == null)
+        {               
+            //temporary claim instance, just for checking contains()
+            Claim newClaim = new Claim(
+                    new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx1, newy1, newz1), 
+                    new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx2, newy2, newz2),
+                    null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false);
+            
+            //if the new claim is smaller
+            if(!newClaim.contains(oldClaim.getLesserBoundaryCorner(), true, false) || !newClaim.contains(oldClaim.getGreaterBoundaryCorner(), true, false))
+            {
+                smaller = true;
+                
+                //remove surface fluids about to be unclaimed
+                oldClaim.removeSurfaceFluids(newClaim);
+            }
+        }
+        
+        //ask the datastore to try and resize the claim, this checks for conflicts with other claims
+        CreateClaimResult result = GriefPrevention.instance.dataStore.resizeClaim(playerData.claimResizing, newx1, newx2, newy1, newy2, newz1, newz2, player);
+        
+        if(result.succeeded)
+        {
+            //decide how many claim blocks are available for more resizing
+            int claimBlocksRemaining = 0;
+            if(!playerData.claimResizing.isAdminClaim())
+            {
+                UUID ownerID = playerData.claimResizing.ownerID;
+                if(playerData.claimResizing.parent != null)
+                {
+                    ownerID = playerData.claimResizing.parent.ownerID;
+                }
+                if(ownerID == player.getUniqueId())
+                {
+                    claimBlocksRemaining = playerData.getRemainingClaimBlocks();
+                }
+                else
+                {
+                    PlayerData ownerData = this.getPlayerData(ownerID);
+                    claimBlocksRemaining = ownerData.getRemainingClaimBlocks();
+                    OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID);
+                    if(!owner.isOnline())
+                    {
+                        this.clearCachedPlayerData(ownerID);
+                    }
+                }
+            }
+            
+            //inform about success, visualize, communicate remaining blocks available
+            GriefPrevention.sendMessage(player, TextMode.Success, Messages.ClaimResizeSuccess, String.valueOf(claimBlocksRemaining));
+            Visualization visualization = Visualization.FromClaim(result.claim, player.getEyeLocation().getBlockY(), VisualizationType.Claim, player.getLocation());
+            Visualization.Apply(player, visualization);
+            
+            //if resizing someone else's claim, make a log entry
+            if(!player.getUniqueId().equals(playerData.claimResizing.ownerID) && playerData.claimResizing.parent == null)
+            {
+                GriefPrevention.AddLogEntry(player.getName() + " resized " + playerData.claimResizing.getOwnerName() + "'s claim at " + GriefPrevention.getfriendlyLocationString(playerData.claimResizing.lesserBoundaryCorner) + ".");
+            }
+            
+            //if increased to a sufficiently large size and no subdivisions yet, send subdivision instructions
+            if(oldClaim.getArea() < 1000 && result.claim.getArea() >= 1000 && result.claim.children.size() == 0 && !player.hasPermission("griefprevention.adminclaims"))
+            {
+              GriefPrevention.sendMessage(player, TextMode.Info, Messages.BecomeMayor, 200L);
+              GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SubdivisionVideo2, 201L, DataStore.SUBDIVISION_VIDEO_URL);
+            }
+            
+            //if in a creative mode world and shrinking an existing claim, restore any unclaimed area
+            if(smaller && GriefPrevention.instance.creativeRulesApply(oldClaim.getLesserBoundaryCorner()))
+            {
+                GriefPrevention.sendMessage(player, TextMode.Warn, Messages.UnclaimCleanupWarning);
+                GriefPrevention.instance.restoreClaim(oldClaim, 20L * 60 * 2);  //2 minutes
+                GriefPrevention.AddLogEntry(player.getName() + " shrank a claim @ " + GriefPrevention.getfriendlyLocationString(playerData.claimResizing.getLesserBoundaryCorner()));
+            }
+            
+            //clean up
+            playerData.claimResizing = null;
+            playerData.lastShovelLocation = null;
+        }
+        else
+        {
+            if(result.claim != null)
+            {
+                //inform player
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeFailOverlap);
+                
+                //show the player the conflicting claim
+                Visualization visualization = Visualization.FromClaim(result.claim, player.getEyeLocation().getBlockY(), VisualizationType.ErrorClaim, player.getLocation());
+                Visualization.Apply(player, visualization);
+            }
+            else
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeFailOverlapRegion);
+            }
+        }
+    }
+	
+    //educates a player about /adminclaims and /acb, if he can use them 
+    void tryAdvertiseAdminAlternatives(Player player)
+    {
+        if(player.hasPermission("griefprevention.adminclaims") && player.hasPermission("griefprevention.adjustclaimblocks"))
+        {
+            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseACandACB);
+        }
+        else if(player.hasPermission("griefprevention.adminclaims"))
+        {
+            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseAdminClaims);
+        }
+        else if(player.hasPermission("griefprevention.adjustclaimblocks"))
+        {
+            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseACB);
+        }
+    }
+	
 	private void loadMessages() 
 	{
 		Messages [] messageIDs = Messages.values();
@@ -1248,7 +1439,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.DonateItemsInstruction, "To give away the item(s) in your hand, left-click the chest again.", null);
 		this.addDefault(defaults, Messages.ChestFull, "This chest is full.", null);
 		this.addDefault(defaults, Messages.DonationSuccess, "Item(s) transferred to chest!", null);
-		this.addDefault(defaults, Messages.PlayerTooCloseForFire, "You can't start a fire this close to {0}.", "0: other player's name");
+		this.addDefault(defaults, Messages.PlayerTooCloseForFire2, "You can't start a fire this close to another player.", null);
 		this.addDefault(defaults, Messages.TooDeepToClaim, "This chest can't be protected because it's too deep underground.  Consider moving it.", null);
 		this.addDefault(defaults, Messages.ChestClaimConfirmation, "This chest is protected.", null);
 		this.addDefault(defaults, Messages.AutomaticClaimNotification, "This chest and nearby blocks are protected from breakage and theft.", null);
@@ -1393,6 +1584,14 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.PlayerNotIgnorable, "You can't ignore that player.", null);
 		this.addDefault(defaults, Messages.NoEnoughBlocksForChestClaim, "Because you don't have any claim blocks available, no automatic land claim was created for you.  You can use /ClaimsList to monitor your available claim block total.", null);
 		this.addDefault(defaults, Messages.ExceedsMaxBlockCount, "You can only purchase an additional {0} blocks before reaching the limit.", "0:Number of blocks they can still purchase");
+		this.addDefault(defaults, Messages.MustHoldModificationToolForThat, "You must be holding a golden shovel to do that.", null);
+		this.addDefault(defaults, Messages.StandInClaimToResize, "Stand inside the land claim you want to resize.", null);
+		this.addDefault(defaults, Messages.ClaimsExtendToSky, "Land claims always extend to max build height.", null);
+		this.addDefault(defaults, Messages.ClaimsAutoExtendDownward, "Land claims auto-extend deeper into the ground when you place blocks under them.", null);
+		this.addDefault(defaults, Messages.MinimumRadius, "Minimum radius is {0}.", "0: minimum radius");
+		this.addDefault(defaults, Messages.RadiusRequiresGoldenShovel, "You must be holding a golden shovel when specifying a radius.", null);
+		this.addDefault(defaults, Messages.ClaimTooSmallForActiveBlocks, "This claim isn't big enough to support any active block types (hoppers, spawners, beacons...).  Make the claim bigger first.", null);
+		this.addDefault(defaults, Messages.TooManyActiveBlocksInClaim, "This claim is at its limit for active block types (hoppers, spawners, beacons...).  Either make it bigger, or remove other active blocks first.", null);
 		this.addDefault(defaults, Messages.BookAuthor, "BigScary", null);
 		this.addDefault(defaults, Messages.BookTitle, "How to Claim Land", null);
 		this.addDefault(defaults, Messages.BookLink, "Click: {0}", "{0}: video URL");
@@ -1401,6 +1600,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.BookDisabledChestClaims, "  On this server, placing a chest will NOT claim land for you.", null);
 		this.addDefault(defaults, Messages.BookUsefulCommands, "Useful Commands:", null);
 		this.addDefault(defaults, Messages.NoProfanity, "Please moderate your language.", null);
+		this.addDefault(defaults, Messages.IsIgnoringYou, "That player is ignoring you.", null);
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));
@@ -1423,6 +1623,12 @@ public abstract class DataStore
 			this.messages[messageID.ordinal()] = config.getString("Messages." + messageID.name() + ".Text", messageData.text);
 			config.set("Messages." + messageID.name() + ".Text", this.messages[messageID.ordinal()]);
 			
+			//support color codes
+			if(messageID != Messages.HowToClaimRegex)
+			{
+			    this.messages[messageID.ordinal()] = this.messages[messageID.ordinal()].replace('$', (char)0x00A7);
+			}
+			
 			if(messageData.notes != null)
 			{
 				messageData.notes = config.getString("Messages." + messageID.name() + ".Notes", messageData.notes);
@@ -1433,7 +1639,8 @@ public abstract class DataStore
 		//save any changes
 		try
 		{
-			config.save(DataStore.messagesFilePath);
+			config.options().header("Use a YAML editor like NotepadPlusPlus to edit this file.  \nAfter editing, back up your changes before reloading the server in case you made a syntax error.  \nUse dollar signs ($) for formatting codes, which are documented here: http://minecraft.gamepedia.com/Formatting_codes");
+		    config.save(DataStore.messagesFilePath);
 		}
 		catch(IOException exception)
 		{
@@ -1536,11 +1743,17 @@ public abstract class DataStore
             for(int chunk_z = lesserChunk.getZ(); chunk_z <= greaterChunk.getZ(); chunk_z++)
             {
                 Chunk chunk = location.getWorld().getChunkAt(chunk_x, chunk_z);
-                String chunkID = this.getChunkString(chunk.getBlock(0,  0,  0).getLocation());
+                Long chunkID = getChunkHash(chunk.getBlock(0,  0,  0).getLocation());
                 ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkID);
                 if(claimsInChunk != null)
                 {
-                    claims.addAll(claimsInChunk);
+                    for(Claim claim : claimsInChunk)
+                    {
+                        if(claim.inDataStore && claim.getLesserBoundaryCorner().getWorld().equals(location.getWorld()))
+                        {
+                            claims.add(claim);
+                        }
+                    }
                 }
             }
         }

@@ -139,7 +139,8 @@ public class BlockEventHandler implements Listener
 			
 			if(!player.hasPermission("griefprevention.eavesdropsigns"))
 			{
-				Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
+				@SuppressWarnings("unchecked")
+                Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
 				for(Player otherPlayer : players)
 				{
 					if(otherPlayer.hasPermission("griefprevention.eavesdropsigns"))
@@ -174,7 +175,8 @@ public class BlockEventHandler implements Listener
 	}
 	
 	//when a player places a block...
-	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+	@SuppressWarnings("null")
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
 	public void onBlockPlace(BlockPlaceEvent placeEvent)
 	{
 		Player player = placeEvent.getPlayer();
@@ -183,7 +185,7 @@ public class BlockEventHandler implements Listener
 		//FEATURE: limit fire placement, to prevent PvP-by-fire
 		
 		//if placed block is fire and pvp is off, apply rules for proximity to other players 
-		if(block.getType() == Material.FIRE && !GriefPrevention.instance.pvpRulesApply(block.getWorld()) && !player.hasPermission("griefprevention.lava"))
+		if(block.getType() == Material.FIRE && (!GriefPrevention.instance.pvpRulesApply(block.getWorld()) || !GriefPrevention.instance.config_pvp_allowFireNearPlayers))
 		{
 			List<Player> players = block.getWorld().getPlayers();
 			for(int i = 0; i < players.size(); i++)
@@ -192,7 +194,7 @@ public class BlockEventHandler implements Listener
 				Location location = otherPlayer.getLocation();
 				if(!otherPlayer.equals(player) && location.distanceSquared(block.getLocation()) < 9)
 				{
-					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerTooCloseForFire, otherPlayer.getName());
+					GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerTooCloseForFire2);
 					placeEvent.setCancelled(true);
 					return;
 				}					
@@ -263,34 +265,43 @@ public class BlockEventHandler implements Listener
 				//otherwise, create a claim in the area around the chest
 				else
 				{
-					//as long as the automatic claim overlaps another existing claim, shrink it
+				    //if failure due to insufficient claim blocks available
+                    if(playerData.getRemainingClaimBlocks() < 1)
+                    {
+                        GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoEnoughBlocksForChestClaim);
+                        return;
+                    }
+				    
+				    //as long as the automatic claim overlaps another existing claim, shrink it
 					//note that since the player had permission to place the chest, at the very least, the automatic claim will include the chest
-					while(radius >= 0 && playerData.getRemainingClaimBlocks() >= (radius + 1) * (radius + 1) && !this.dataStore.createClaim(block.getWorld(), 
-							block.getX() - radius, block.getX() + radius, 
-							block.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance, block.getY(), 
-							block.getZ() - radius, block.getZ() + radius, 
-							player.getUniqueId(), 
-							null, null,
-							player).succeeded)
+					CreateClaimResult result = null;
+				    while(radius >= 0)
 					{
-						radius--;
+				        int area = (radius * 2 + 1) * (radius * 2 + 1);
+				        if(playerData.getRemainingClaimBlocks() >= area)
+				        {
+			                result = this.dataStore.createClaim(
+		                        block.getWorld(), 
+	                            block.getX() - radius, block.getX() + radius, 
+	                            block.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance, block.getY(), 
+	                            block.getZ() - radius, block.getZ() + radius, 
+	                            player.getUniqueId(), 
+	                            null, null,
+	                            player);
+			                
+			                if(result.succeeded) break;
+				        }
+				        
+				        radius--;
 					}
 					
-					//if failure due to insufficient claim blocks available
-					if(radius < 0)
-					{
-					    GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoEnoughBlocksForChestClaim);
-					    return;
-					}
-					
-					else
+					if(result != null && result.succeeded)
 					{
     					//notify and explain to player
     					GriefPrevention.sendMessage(player, TextMode.Success, Messages.AutomaticClaimNotification);
     					
     					//show the player the protected area
-    					Claim newClaim = this.dataStore.getClaimAt(block.getLocation(), false, null);
-    					Visualization visualization = Visualization.FromClaim(newClaim, block.getY(), VisualizationType.Claim, player.getLocation());
+    					Visualization visualization = Visualization.FromClaim(result.claim, block.getY(), VisualizationType.Claim, player.getLocation());
     					Visualization.Apply(player, visualization);
 					}
 				}
@@ -366,6 +377,34 @@ public class BlockEventHandler implements Listener
 		{
 		    GriefPrevention.sendMessage(player, TextMode.Warn, Messages.NoPistonsOutsideClaims);
 		}
+		
+		//limit active blocks in creative mode worlds
+		if(!player.hasPermission("griefprevention.adminclaims") && GriefPrevention.instance.creativeRulesApply(block.getLocation()) && isActiveBlock(block))
+		{
+    		String noPlaceReason = claim.allowMoreActiveBlocks();
+            if(noPlaceReason != null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, noPlaceReason);
+                placeEvent.setCancelled(true);
+                return;
+            }
+		}
+	}
+	
+	static boolean isActiveBlock(Block block)
+	{
+	    return isActiveBlock(block.getType());
+	}
+	
+	static boolean isActiveBlock(BlockState state)
+	{
+	    return isActiveBlock(state.getType());
+	}
+	
+	static boolean isActiveBlock(Material type)
+	{
+	    if(type == Material.HOPPER || type == Material.BEACON || type == Material.MOB_SPAWNER) return true;
+	    return false;
 	}
 	
 	//blocks "pushing" other players' blocks around (pistons)
@@ -717,7 +756,8 @@ public class BlockEventHandler implements Listener
 	    
 	    //from where?
 		Block fromBlock = dispenseEvent.getBlock();
-		Dispenser dispenser = new Dispenser(fromBlock.getType(), fromBlock.getData());
+		@SuppressWarnings("deprecation")
+        Dispenser dispenser = new Dispenser(Material.DISPENSER, fromBlock.getData());
 		
 		//to where?
 		Block toBlock = fromBlock.getRelative(dispenser.getFacing());

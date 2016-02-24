@@ -4,7 +4,7 @@ main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 13.1
+version: 13.9.1
 commands:
    claimprotect:
       description: Makes it so no one can break blocks in a claim
@@ -109,6 +109,16 @@ commands:
       usage: /BasicClaims
       aliases: bc
       permission: griefprevention.claims
+   extendclaim:
+      description: Resizes the land claim you're standing in by pushing or pulling its boundary in the direction you're facing.
+      usage: /ExtendClaim <numberOfBlocks>
+      aliases: [expandclaim, resizeclaim]
+      permission: griefprevention.claims
+   claim:
+      description: Creates a land claim centered at your current location.
+      usage: /Claim [optional radius]
+      aliases: [createclaim, makeclaim, newclaim]
+      permission: griefprevention.claims
    buyclaimblocks:
       description: Purchases additional claim blocks with server money.  Doesn't work on servers without a Vault-compatible economy plugin.
       usage: /BuyClaimBlocks <numberOfBlocks>
@@ -122,6 +132,7 @@ commands:
    trapped:
       description: Ejects you to nearby unclaimed land.  Has a substantial cooldown period.
       usage: /Trapped
+      permission: griefprevention.trapped
    trustlist:
       description: Lists permissions for the claim you're standing in.
       usage: /TrustList
@@ -129,6 +140,7 @@ commands:
    siege:
       description: Initiates a siege versus another player.
       usage: /Siege <playerName>
+      permission: griefprevention.siege
    ignoreclaims:
       description: Toggles ignore claims mode.
       usage: /IgnoreClaims
@@ -150,6 +162,7 @@ commands:
    unlockdrops:
       description: Allows other players to pick up the items you dropped when you died.
       usage: /UnlockDrops
+      permission: griefprevention.unlockdrops
    claimslist:
       description: Lists information about a player's claim blocks and claims.
       usage: /ClaimsList or /ClaimsList <player>
@@ -159,6 +172,7 @@ commands:
       description: Toggles whether explosives may be used in a specific land claim.
       usage: /ClaimExplosions
       permission: griefprevention.claims
+      aliases: claimexplosion
    softmute:
       description: Toggles whether a player's messages will only reach other soft-muted players.
       usage: /SoftMute <player>
@@ -234,11 +248,21 @@ permissions:
             griefprevention.claimbook: true
             griefprevention.notignorable: true
             griefprevention.seeinactivity: true
+            griefprevention.eavesdropimmune: true
     griefprevention.siegeimmune:
         description: Makes a player immune to /Siege.
         default: op
     griefprevention.givepet:
         description: Grants permission to use /GivePet.
+        default: true
+    griefprevention.siege:
+        description: Grants permission to use /Siege.
+        default: true
+    griefprevention.unlockdrops:
+        description: Grants permission to use /UnlockDrops.
+        default: true
+    griefprevention.trapped:
+        description: Grants permission to use /Trapped.
         default: true
     griefprevention.claimslistother:
         description: Grants permission to use /ClaimsList to get another player's information.
@@ -314,4 +338,7 @@ permissions:
         default: op
     griefprevention.seeinactivity:
         description: Players with this permission can see how long a claim owner has been offline.
+        default: op
+    griefprevention.eavesdropimmune:
+        description: Players with this permission can't have their private messages eavesdropped.
         default: op

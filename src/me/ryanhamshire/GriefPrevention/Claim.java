@@ -23,6 +23,7 @@ import java.util.*;
 import org.bukkit.*;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
@@ -739,9 +740,9 @@ public class Claim
 	}
 	
 	//whether more entities may be added to a claim
-	public String allowMoreEntities()
+	public String allowMoreEntities(boolean remove)
 	{
-		if(this.parent != null) return this.parent.allowMoreEntities();
+		if(this.parent != null) return this.parent.allowMoreEntities(remove);
 		
 		//this rule only applies to creative mode worlds
 		if(!GriefPrevention.instance.creativeRulesApply(this.getLesserBoundaryCorner())) return null;
@@ -768,15 +769,47 @@ public class Claim
 				if(!(entity instanceof Player) && this.contains(entity.getLocation(), false, false))
 				{
 					totalEntities++;
-					if(totalEntities > maxEntities) entity.remove();
+					if(remove && totalEntities > maxEntities) entity.remove();
 				}
 			}
 		}
 
-		if(totalEntities > maxEntities) return GriefPrevention.instance.dataStore.getMessage(Messages.TooManyEntitiesInClaim);
+		if(totalEntities >= maxEntities) return GriefPrevention.instance.dataStore.getMessage(Messages.TooManyEntitiesInClaim);
 		
 		return null;
 	}
+	
+	public String allowMoreActiveBlocks()
+    {
+	    if(this.parent != null) return this.parent.allowMoreActiveBlocks();
+	    
+	    //determine maximum allowable entity count, based on claim size
+        int maxActives = this.getArea() / 100;      
+        if(maxActives == 0) return GriefPrevention.instance.dataStore.getMessage(Messages.ClaimTooSmallForActiveBlocks);
+        
+        //count current actives
+        int totalActives = 0;
+        ArrayList<Chunk> chunks = this.getChunks();
+        for(Chunk chunk : chunks)
+        {
+            BlockState [] actives = chunk.getTileEntities();
+            for(int i = 0; i < actives.length; i++)
+            {
+                BlockState active = actives[i];
+                if(BlockEventHandler.isActiveBlock(active))
+                {
+                    if(this.contains(active.getLocation(), false, false))
+                    {
+                        totalActives++;
+                    }
+                }
+            }
+        }
+
+        if(totalActives >= maxActives) return GriefPrevention.instance.dataStore.getMessage(Messages.TooManyActiveBlocksInClaim);
+        
+        return null;
+    }
 	
 	//implements a strict ordering of claims, used to keep the claims collection sorted for faster searching
 	boolean greaterThan(Claim otherClaim)
@@ -795,7 +828,8 @@ public class Claim
 		return thisCorner.getWorld().getName().compareTo(otherCorner.getWorld().getName()) < 0;
 	}
 	
-	long getPlayerInvestmentScore()
+	@SuppressWarnings("deprecation")
+    long getPlayerInvestmentScore()
 	{
 		//decide which blocks will be considered player placed
 		Location lesserBoundaryCorner = this.getLesserBoundaryCorner();
@@ -871,9 +905,9 @@ public class Claim
         return chunks;
     }
 
-    public ArrayList<String> getChunkStrings()
+    ArrayList<Long> getChunkHashes()
     {
-        ArrayList<String> chunkStrings = new ArrayList<String>();
+        ArrayList<Long> hashes = new ArrayList<Long>();
         int smallX = this.getLesserBoundaryCorner().getBlockX() >> 4;
         int smallZ = this.getLesserBoundaryCorner().getBlockZ() >> 4;
 		int largeX = this.getGreaterBoundaryCorner().getBlockX() >> 4;
@@ -883,10 +917,10 @@ public class Claim
 		{
 		    for(int z = smallZ; z <= largeZ; z++)
 		    {
-		        chunkStrings.add(String.valueOf(x) + z);
+		        hashes.add(DataStore.getChunkHash(x, z));
 		    }
 		}
 		
-		return chunkStrings;
+		return hashes;
     }
 }

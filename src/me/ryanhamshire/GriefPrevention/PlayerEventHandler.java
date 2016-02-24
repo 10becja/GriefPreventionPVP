@@ -31,19 +31,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 
-import org.bukkit.Achievement;
-import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
-import org.bukkit.ChunkSnapshot;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.TravelAgent;
-import org.bukkit.BanList.Type;
-import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -59,7 +54,6 @@ import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.Vehicle;
-import org.bukkit.entity.Villager;
 import org.bukkit.entity.minecart.PoweredMinecart;
 import org.bukkit.entity.minecart.StorageMinecart;
 import org.bukkit.event.EventHandler;
@@ -167,7 +161,7 @@ class PlayerEventHandler implements Listener
 		    recipients.clear();
 		    recipients.addAll(recipientsToKeep);
 		    
-		    GriefPrevention.AddLogEntry(notificationMessage, CustomLogEntryTypes.AdminActivity, false);
+		    GriefPrevention.AddLogEntry(notificationMessage, CustomLogEntryTypes.MutedChat, false);
 		}
 		
 		//troll and excessive profanity filter
@@ -193,7 +187,7 @@ class PlayerEventHandler implements Listener
             //otherwise assume chat troll and mute all chat from this sender until an admin says otherwise
             else
             {
-                GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.");
+                GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.", CustomLogEntryTypes.AdminActivity);
                 GriefPrevention.instance.dataStore.toggleSoftMute(player.getUniqueId());
             }
         }
@@ -246,10 +240,10 @@ class PlayerEventHandler implements Listener
 		{
 			this.howToClaimPattern = Pattern.compile(this.dataStore.getMessage(Messages.HowToClaimRegex), Pattern.CASE_INSENSITIVE);
 		}
-		
+
 		if(this.howToClaimPattern.matcher(message).matches())
 		{
-			if(GriefPrevention.instance.creativeRulesApply(player.getLocation()))
+		    if(GriefPrevention.instance.creativeRulesApply(player.getLocation()))
 			{
 				GriefPrevention.sendMessage(player, TextMode.Info, Messages.CreativeBasicsVideo2, 10L, DataStore.CREATIVE_VIDEO_URL);
 			}
@@ -529,11 +523,11 @@ class PlayerEventHandler implements Listener
                 return;
             }
             
-            //if eavesdrop enabled and sender doesn't have the eavesdrop permission, eavesdrop
-		    if(GriefPrevention.instance.config_whisperNotifications && !player.hasPermission("griefprevention.eavesdrop"))
+            //if eavesdrop enabled and sender doesn't have the eavesdrop immunity permission, eavesdrop
+		    if(GriefPrevention.instance.config_whisperNotifications && !player.hasPermission("griefprevention.eavesdropimmune"))
     		{			
-                //except for when the recipient has eavesdrop permission
-                if(targetPlayer == null || !targetPlayer.hasPermission("griefprevention.eavesdrop"))
+                //except for when the recipient has eavesdrop immunity
+                if(targetPlayer == null || !targetPlayer.hasPermission("griefprevention.eavesdropimmune"))
                 {
                     StringBuilder logMessageBuilder = new StringBuilder();
         			logMessageBuilder.append("[[").append(event.getPlayer().getName()).append("]] ");
@@ -545,10 +539,11 @@ class PlayerEventHandler implements Listener
         			
         			String logMessage = logMessageBuilder.toString();
         			
-        			Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
+        			@SuppressWarnings("unchecked")
+                    Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
         			for(Player onlinePlayer : players)
         			{
-        				if(onlinePlayer.hasPermission("griefprevention.eavesdrop") && !onlinePlayer.equals(targetPlayer))
+        				if(onlinePlayer.hasPermission("griefprevention.eavesdrop") && !onlinePlayer.equals(targetPlayer) && !onlinePlayer.equals(player))
         				{
         				    onlinePlayer.sendMessage(ChatColor.GRAY + logMessage);
         				}
@@ -561,9 +556,10 @@ class PlayerEventHandler implements Listener
             {
                 //if either is ignoring the other, cancel this command
                 playerData = this.dataStore.getPlayerData(player.getUniqueId());
-                if(playerData.ignoredPlayers.containsKey(targetPlayer.getUniqueId()))
+                if(playerData.ignoredPlayers.containsKey(targetPlayer.getUniqueId()) && !targetPlayer.hasPermission("griefprevention.notignorable"))
                 {
                     event.setCancelled(true);
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.IsIgnoringYou);
                     return;
                 }
                 
@@ -571,6 +567,7 @@ class PlayerEventHandler implements Listener
                 if(targetPlayerData.ignoredPlayers.containsKey(player.getUniqueId()))
                 {
                     event.setCancelled(true);
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.IsIgnoringYou);
                     return;
                 }
             }
@@ -602,6 +599,11 @@ class PlayerEventHandler implements Listener
 		    {
 		        event.setCancelled(this.handlePlayerChat(event.getPlayer(), event.getMessage(), event));
 		    }
+	        
+	        if(!player.hasPermission("griefprevention.spam") && this.bannedWordFinder.hasMatch(message))
+	        {
+	            event.setCancelled(true);
+	        }
 		    
 		    //unless cancelled, log in abridged logs
 	        if(!event.isCancelled())
@@ -656,6 +658,7 @@ class PlayerEventHandler implements Listener
 	    //otherwise build a list of all the aliases of this command across all installed plugins
 	    HashSet<String> aliases = new HashSet<String>();
 	    aliases.add(commandName);
+	    aliases.add("minecraft:" + commandName);
 	    for(Plugin plugin : Bukkit.getServer().getPluginManager().getPlugins())
         {
             JavaPlugin javaPlugin = (JavaPlugin)plugin;
@@ -773,7 +776,8 @@ class PlayerEventHandler implements Listener
 	}
 	
 	//when a player successfully joins the server...
-	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+	@SuppressWarnings("deprecation")
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
 	void onPlayerJoin(PlayerJoinEvent event)
 	{
 		Player player = event.getPlayer();
@@ -803,7 +807,7 @@ class PlayerEventHandler implements Listener
 		    if(GriefPrevention.instance.config_claims_worldModes.get(player.getWorld()) == ClaimsMode.Survival && !player.hasPermission("griefprevention.adminclaims") && this.dataStore.claims.size() > 10)
 		    {
 		        WelcomeTask task = new WelcomeTask(player);
-		        Bukkit.getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 200L);  //10 seconds after join
+		        Bukkit.getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, GriefPrevention.instance.config_claims_manualDeliveryDelaySeconds * 20L);
 		    }
 		}
 		
@@ -852,10 +856,11 @@ class PlayerEventHandler implements Listener
 					//otherwise if that account is still banned, ban this account, too
 					else
 					{
-						GriefPrevention.AddLogEntry("Auto-banned " + player.getName() + " because that account is using an IP address very recently used by banned player " + info.bannedAccountName + " (" + info.address.toString() + ").", CustomLogEntryTypes.AdminActivity);
+						GriefPrevention.AddLogEntry("Auto-banned new player " + player.getName() + " because that account is using an IP address very recently used by banned player " + info.bannedAccountName + " (" + info.address.toString() + ").", CustomLogEntryTypes.AdminActivity);
 						
 						//notify any online ops
-						Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
+						@SuppressWarnings("unchecked")
+                        Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
 						for(Player otherPlayer : players)
 						{
 							if(otherPlayer.isOp() || otherPlayer.hasPermission("essentials.ban.notify"))
@@ -886,7 +891,7 @@ class PlayerEventHandler implements Listener
         {
             String ipAddressString = ipAddress.toString();
             int ipLimit = GriefPrevention.instance.config_ipLimit;
-            if(ipLimit > 0 && !player.hasAchievement(Achievement.MINE_WOOD))
+            if(ipLimit > 0 && GriefPrevention.isNewToServer(player))
             {
                 Integer ipCount = this.ipCountHash.get(ipAddressString);
                 if(ipCount == null) ipCount = 0;
@@ -897,12 +902,13 @@ class PlayerEventHandler implements Listener
                     GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 10L);
                     
                     //silence join message
-                    event.setJoinMessage("");               
+                    event.setJoinMessage(null);
                     return;
                 }
                 else
                 {
                     this.ipCountHash.put(ipAddressString, ipCount + 1);
+                    playerData.ipLimited = true;
                 }
             }
         }
@@ -931,7 +937,7 @@ class PlayerEventHandler implements Listener
     }
 	
 	//when a player dies...
-	@EventHandler(priority = EventPriority.LOWEST)
+	@EventHandler(priority = EventPriority.HIGHEST)
 	void onPlayerDeath(PlayerDeathEvent event)
 	{
 		//FEATURE: prevent death message spam by implementing a "cooldown period" for death messages
@@ -1014,11 +1020,8 @@ class PlayerEventHandler implements Listener
             if(player.getHealth() > 0) player.setHealth(0);  //might already be zero from above, this avoids a double death message
         }
         
-        //drop data about this player
-        this.dataStore.clearCachedPlayerData(playerID);
-        
         //reduce count of players with that player's IP address
-        if(GriefPrevention.instance.config_ipLimit > 0 && GriefPrevention.isNewToServer(player))
+        if(GriefPrevention.instance.config_ipLimit > 0 && playerData.ipLimited)
         {
             InetAddress ipAddress = playerData.ipAddress;
             if(ipAddress != null)
@@ -1029,13 +1032,16 @@ class PlayerEventHandler implements Listener
                 this.ipCountHash.put(ipAddressString, count - 1);
             }
         }
+        
+        //drop data about this player
+        this.dataStore.clearCachedPlayerData(playerID);
 	}
 	
 	//determines whether or not a login or logout notification should be silenced, depending on how many there have been in the last minute
 	private boolean shouldSilenceNotification()
 	{
 		final long ONE_MINUTE = 60000;
-		final int MAX_ALLOWED = 20;
+		final int MAX_ALLOWED = 5;
 		Long now = Calendar.getInstance().getTimeInMillis();
 		
 		//eliminate any expired entries (longer than a minute ago)
@@ -1258,7 +1264,7 @@ class PlayerEventHandler implements Listener
                    
                    return;
                }
-               if(!GriefPrevention.instance.pvpRulesApply(entity.getLocation().getWorld()))
+               if(!GriefPrevention.instance.pvpRulesApply(entity.getLocation().getWorld()) || GriefPrevention.instance.config_pvp_protectPets)
                {
                    //otherwise disallow
                    OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID); 
@@ -1284,6 +1290,22 @@ class PlayerEventHandler implements Listener
 				event.setCancelled(true);
 				return;
 			}			
+		}
+		
+		//limit armor placements when entity count is too high
+		if(entity.getType() == EntityType.ARMOR_STAND && GriefPrevention.instance.creativeRulesApply(player.getLocation()))
+		{
+		    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
+            Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, playerData.lastClaim);
+            if(claim == null) return;
+            
+            String noEntitiesReason = claim.allowMoreEntities(false);
+            if(noEntitiesReason != null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, noEntitiesReason);
+                event.setCancelled(true);
+                return;
+            }
 		}
 		
 		//always allow interactions when player is in ignore claims mode
@@ -1578,7 +1600,8 @@ class PlayerEventHandler implements Listener
 	}
 	
 	//when a player interacts with the world
-	@EventHandler(priority = EventPriority.LOWEST)
+	@SuppressWarnings("deprecation")
+    @EventHandler(priority = EventPriority.LOWEST)
 	void onPlayerInteract(PlayerInteractEvent event)
 	{
 	    //not interested in left-click-on-air actions
@@ -1817,7 +1840,7 @@ class PlayerEventHandler implements Listener
 				return;
 			}
 			
-			else if(clickedBlock != null && materialInHand ==  Material.BOAT)
+			else if(clickedBlock != null && materialInHand == Material.BOAT)
 			{
 			    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 			    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
@@ -1834,8 +1857,28 @@ class PlayerEventHandler implements Listener
 				return;
 			}
 			
+			//survival world minecart placement requires container trust, which is the permission required to remove the minecart later
+			else if(clickedBlock != null &&
+			        (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.EXPLOSIVE_MINECART || materialInHand == Material.HOPPER_MINECART) &&
+			        !GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
+            {
+                if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
+                Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
+                if(claim != null)
+                {
+                    String reason = claim.allowContainers(player);
+                    if(reason != null)
+                    {
+                        GriefPrevention.sendMessage(player, TextMode.Err, reason);
+                        event.setCancelled(true);
+                    }
+                }
+                
+                return;
+            }
+			
 			//if it's a spawn egg, minecart, or boat, and this is a creative world, apply special rules
-			else if(clickedBlock != null && (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.BOAT) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
+			else if(clickedBlock != null && (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.BOAT || materialInHand == Material.ARMOR_STAND || materialInHand == Material.ITEM_FRAME || materialInHand == Material.MONSTER_EGG || materialInHand == Material.MONSTER_EGGS || materialInHand == Material.EXPLOSIVE_MINECART || materialInHand == Material.HOPPER_MINECART) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
 			{
 				//player needs build permission at this location
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), Material.MINECART);
@@ -1851,7 +1894,7 @@ class PlayerEventHandler implements Listener
 				Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
 				if(claim == null) return;
 				
-				String noEntitiesReason = claim.allowMoreEntities();
+				String noEntitiesReason = claim.allowMoreEntities(false);
 				if(noEntitiesReason != null)
 				{
 					GriefPrevention.sendMessage(player, TextMode.Err, noEntitiesReason);
@@ -2240,143 +2283,7 @@ class PlayerEventHandler implements Listener
 				newy1 = playerData.claimResizing.getLesserBoundaryCorner().getBlockY();
 				newy2 = clickedBlock.getY() - GriefPrevention.instance.config_claims_claimsExtendIntoGroundDistance;
 				
-				//for top level claims, apply size rules and claim blocks requirement
-				if(playerData.claimResizing.parent == null)
-				{				
-					//measure new claim, apply size rules
-					int newWidth = (Math.abs(newx1 - newx2) + 1);
-					int newHeight = (Math.abs(newz1 - newz2) + 1);
-					boolean smaller = newWidth < playerData.claimResizing.getWidth() || newHeight < playerData.claimResizing.getHeight();
-							
-					if(!player.hasPermission("griefprevention.adminclaims") && !playerData.claimResizing.isAdminClaim() && smaller)
-					{
-					    if(newWidth < GriefPrevention.instance.config_claims_minWidth || newHeight < GriefPrevention.instance.config_claims_minWidth)
-					    {
-    						GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeClaimTooNarrow, String.valueOf(GriefPrevention.instance.config_claims_minWidth));
-    						return;
-					    }
-					    
-					    int newArea = newWidth * newHeight;
-					    if(newArea < GriefPrevention.instance.config_claims_minArea)
-					    {
-					        GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeClaimInsufficientArea, String.valueOf(GriefPrevention.instance.config_claims_minArea));
-                            return;
-					    }
-					}
-					
-					//make sure player has enough blocks to make up the difference
-					if(!playerData.claimResizing.isAdminClaim() && player.getName().equals(playerData.claimResizing.getOwnerName()))
-					{
-						int newArea =  newWidth * newHeight;
-						int blocksRemainingAfter = playerData.getRemainingClaimBlocks() + playerData.claimResizing.getArea() - newArea;
-						
-						if(blocksRemainingAfter < 0)
-						{
-							GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeNeedMoreBlocks, String.valueOf(Math.abs(blocksRemainingAfter)));
-							this.tryAdvertiseAdminAlternatives(player);
-							return;
-						}
-					}
-				}
-				
-				//special rule for making a top-level claim smaller.  to check this, verifying the old claim's corners are inside the new claim's boundaries.
-				//rule: in any mode, shrinking a claim removes any surface fluids
-				Claim oldClaim = playerData.claimResizing;
-				boolean smaller = false;
-				if(oldClaim.parent == null)
-				{				
-					//temporary claim instance, just for checking contains()
-					Claim newClaim = new Claim(
-							new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx1, newy1, newz1), 
-							new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx2, newy2, newz2),
-							null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false);
-					
-					//if the new claim is smaller
-					if(!newClaim.contains(oldClaim.getLesserBoundaryCorner(), true, false) || !newClaim.contains(oldClaim.getGreaterBoundaryCorner(), true, false))
-					{
-						smaller = true;
-						
-						//remove surface fluids about to be unclaimed
-						oldClaim.removeSurfaceFluids(newClaim);
-					}
-				}
-				
-				//ask the datastore to try and resize the claim, this checks for conflicts with other claims
-				CreateClaimResult result = GriefPrevention.instance.dataStore.resizeClaim(playerData.claimResizing, newx1, newx2, newy1, newy2, newz1, newz2, player);
-				
-				if(result.succeeded)
-				{
-					//decide how many claim blocks are available for more resizing
-				    int claimBlocksRemaining = 0;
-				    if(!playerData.claimResizing.isAdminClaim())
-				    {
-				        UUID ownerID = playerData.claimResizing.ownerID;
-				        if(playerData.claimResizing.parent != null)
-				        {
-				            ownerID = playerData.claimResizing.parent.ownerID;
-				        }
-				        if(ownerID == player.getUniqueId())
-				        {
-				            claimBlocksRemaining = playerData.getRemainingClaimBlocks();
-				        }
-				        else
-				        {
-				            PlayerData ownerData = this.dataStore.getPlayerData(ownerID);
-				            claimBlocksRemaining = ownerData.getRemainingClaimBlocks();
-				            OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID);
-				            if(!owner.isOnline())
-				            {
-				                this.dataStore.clearCachedPlayerData(ownerID);
-				            }
-				        }
-				    }
-					
-				    //inform about success, visualize, communicate remaining blocks available
-				    GriefPrevention.sendMessage(player, TextMode.Success, Messages.ClaimResizeSuccess, String.valueOf(claimBlocksRemaining));
-					Visualization visualization = Visualization.FromClaim(result.claim, clickedBlock.getY(), VisualizationType.Claim, player.getLocation());
-					Visualization.Apply(player, visualization);
-					
-					//if resizing someone else's claim, make a log entry
-					if(!playerID.equals(playerData.claimResizing.ownerID) && playerData.claimResizing.parent == null)
-					{
-						GriefPrevention.AddLogEntry(player.getName() + " resized " + playerData.claimResizing.getOwnerName() + "'s claim at " + GriefPrevention.getfriendlyLocationString(playerData.claimResizing.lesserBoundaryCorner) + ".");
-					}
-					
-					//if increased to a sufficiently large size and no subdivisions yet, send subdivision instructions
-					if(oldClaim.getArea() < 1000 && result.claim.getArea() >= 1000 && result.claim.children.size() == 0 && !player.hasPermission("griefprevention.adminclaims"))
-					{
-					  GriefPrevention.sendMessage(player, TextMode.Info, Messages.BecomeMayor, 200L);
-	                  GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SubdivisionVideo2, 201L, DataStore.SUBDIVISION_VIDEO_URL);
-					}
-					
-					//if in a creative mode world and shrinking an existing claim, restore any unclaimed area
-					if(smaller && GriefPrevention.instance.creativeRulesApply(oldClaim.getLesserBoundaryCorner()))
-					{
-						GriefPrevention.sendMessage(player, TextMode.Warn, Messages.UnclaimCleanupWarning);
-						GriefPrevention.instance.restoreClaim(oldClaim, 20L * 60 * 2);  //2 minutes
-						GriefPrevention.AddLogEntry(player.getName() + " shrank a claim @ " + GriefPrevention.getfriendlyLocationString(playerData.claimResizing.getLesserBoundaryCorner()));
-					}
-					
-					//clean up
-					playerData.claimResizing = null;
-					playerData.lastShovelLocation = null;
-				}
-				else
-				{
-					if(result.claim != null)
-					{
-    				    //inform player
-    					GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeFailOverlap);
-    					
-    					//show the player the conflicting claim
-    					Visualization visualization = Visualization.FromClaim(result.claim, clickedBlock.getY(), VisualizationType.ErrorClaim, player.getLocation());
-    					Visualization.Apply(player, visualization);
-					}
-					else
-					{
-					    GriefPrevention.sendMessage(player, TextMode.Err, Messages.ResizeFailOverlapRegion);
-					}
-				}
+				this.dataStore.resizeClaimWithChecks(player, playerData, newx1, newx2, newy1, newy2, newz1, newz2);
 				
 				return;
 			}
@@ -2570,7 +2477,7 @@ class PlayerEventHandler implements Listener
 					if(newClaimArea > remainingBlocks)
 					{
 						GriefPrevention.sendMessage(player, TextMode.Err, Messages.CreateClaimInsufficientBlocks, String.valueOf(newClaimArea - remainingBlocks));
-						this.tryAdvertiseAdminAlternatives(player);
+						GriefPrevention.instance.dataStore.tryAdvertiseAdminAlternatives(player);
 						return;
 					}
 				}					
@@ -2622,51 +2529,18 @@ class PlayerEventHandler implements Listener
 		                GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SubdivisionVideo2, 201L, DataStore.SUBDIVISION_VIDEO_URL);
 		            }
 					
-					//auto-extend it downward to cover anything already built underground
-					Claim newClaim = result.claim;
-					Location lesserCorner = newClaim.getLesserBoundaryCorner();
-					Location greaterCorner = newClaim.getGreaterBoundaryCorner();
-					World world = lesserCorner.getWorld();
-					ArrayList<ChunkSnapshot> snapshots = new ArrayList<ChunkSnapshot>();
-					for(int chunkx = lesserCorner.getBlockX() / 16; chunkx <= greaterCorner.getBlockX() / 16; chunkx++)
-					{
-					    for(int chunkz = lesserCorner.getBlockZ() / 16; chunkz <= greaterCorner.getBlockZ() / 16; chunkz++)
-					    {
-					        if(world.isChunkLoaded(chunkx, chunkz))
-					        {
-					            snapshots.add(world.getChunkAt(chunkx, chunkz).getChunkSnapshot(true, true, true));
-					        }
-					    }
-					}
-					
-					Bukkit.getScheduler().runTaskAsynchronously(GriefPrevention.instance, new AutoExtendClaimTask(newClaim, snapshots, world.getEnvironment()));
+					GriefPrevention.instance.autoExtendClaim(result.claim);
 				}
 			}
 		}
 	}
 	
-	//educates a player about /adminclaims and /acb, if he can use them 
-	private void tryAdvertiseAdminAlternatives(Player player)
-	{
-        if(player.hasPermission("griefprevention.adminclaims") && player.hasPermission("griefprevention.adjustclaimblocks"))
-        {
-            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseACandACB);
-        }
-        else if(player.hasPermission("griefprevention.adminclaims"))
-        {
-            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseAdminClaims);
-        }
-        else if(player.hasPermission("griefprevention.adjustclaimblocks"))
-        {
-            GriefPrevention.sendMessage(player, TextMode.Info, Messages.AdvertiseACB);
-        }
-    }
-
     //determines whether a block type is an inventory holder.  uses a caching strategy to save cpu time
 	private ConcurrentHashMap<Integer, Boolean> inventoryHolderCache = new ConcurrentHashMap<Integer, Boolean>();
 	private boolean isInventoryHolder(Block clickedBlock)
 	{
-	    Integer cacheKey = clickedBlock.getTypeId();
+	    @SuppressWarnings("deprecation")
+        Integer cacheKey = clickedBlock.getTypeId();
 	    Boolean cachedValue = this.inventoryHolderCache.get(cacheKey);
 	    if(cachedValue != null)
 	    {
@@ -2700,14 +2574,19 @@ class PlayerEventHandler implements Listener
 
     static Block getTargetBlock(Player player, int maxDistance) throws IllegalStateException
 	{
-	    BlockIterator iterator = new BlockIterator(player.getLocation(), player.getEyeHeight(), maxDistance);
+        Location eye = player.getEyeLocation();
+        Material eyeMaterial = eye.getBlock().getType();
+        boolean passThroughWater = (eyeMaterial == Material.WATER || eyeMaterial == Material.STATIONARY_WATER); 
+        BlockIterator iterator = new BlockIterator(player.getLocation(), player.getEyeHeight(), maxDistance);
 	    Block result = player.getLocation().getBlock().getRelative(BlockFace.UP);
 	    while (iterator.hasNext())
 	    {
 	        result = iterator.next();
-	        if(result.getType() != Material.AIR && 
-	           result.getType() != Material.STATIONARY_WATER &&
-	           result.getType() != Material.LONG_GRASS) return result;
+	        Material type = result.getType();
+	        if(type != Material.AIR && 
+	           (!passThroughWater || type != Material.STATIONARY_WATER) &&
+	           (!passThroughWater || type != Material.WATER) &&
+	           type != Material.LONG_GRASS) return result;
 	    }
 	    
 	    return result;
