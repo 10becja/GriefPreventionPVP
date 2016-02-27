@@ -21,10 +21,13 @@ package me.ryanhamshire.GriefPrevention;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
@@ -941,6 +944,13 @@ public class GriefPrevention extends JavaPlugin
 		if (sender instanceof Player) 
 		{
 			player = (Player) sender;
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
+		{
+			if(sender instanceof ConsoleCommandSender)
+				return removeOldClaims();
+			sender.sendMessage(ChatColor.DARK_RED + "This command can only be run from the console");
 		}
 		//claimprotect
 		if(cmd.getName().equalsIgnoreCase("claimprotect"))
@@ -3599,6 +3609,33 @@ public class GriefPrevention extends JavaPlugin
 				, 20L * 30); //wait 30 seconds before running the task
 			}
 		}
+		return true;
+	}
+	
+	private boolean removeOldClaims()
+	{
+		Set<UUID> owners = new HashSet<UUID>();
+		for(Claim c : this.dataStore.claims)
+			owners.add(c.ownerID);
+		System.out.println(owners);
+		int cutOff = 0;
+		for(UUID id : owners)
+		{
+			if(id != null)
+			{
+				PlayerData pd = this.dataStore.getPlayerData(id);
+				Calendar earliestPermissibleLastLogin = Calendar.getInstance();
+				earliestPermissibleLastLogin.add(Calendar.DATE, -config_claims_expirationDays);
+				if(earliestPermissibleLastLogin.getTime().after(pd.getLastLogin()))
+				{
+					cutOff++;
+					this.dataStore.deleteClaimsForPlayer(id, false);
+					AddLogEntry(" Manually removed all of " + Bukkit.getOfflinePlayer(id).getName() + "'s claims", CustomLogEntryTypes.AdminActivity);
+				}
+			}
+			if(cutOff >= 25)
+				return true;
+		}		
 		return true;
 	}
 

@@ -6,6 +6,8 @@ dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
 version: 13.9.1
 commands:
+   removeOldClaims:
+      description: Command to manually remove all expired claims. Can only be run from console
    claimprotect:
       description: Makes it so no one can break blocks in a claim
       usage: /claimprotect
