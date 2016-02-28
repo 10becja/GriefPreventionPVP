@@ -3617,7 +3617,7 @@ public class GriefPrevention extends JavaPlugin
 		Set<UUID> owners = new HashSet<UUID>();
 		for(Claim c : this.dataStore.claims)
 			owners.add(c.ownerID);
-		System.out.println(owners);
+
 		int cutOff = 0;
 		for(UUID id : owners)
 		{
