@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -64,6 +65,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.MetadataValue;
@@ -185,7 +187,7 @@ class PlayerEventHandler implements Listener
             }
             
             //otherwise assume chat troll and mute all chat from this sender until an admin says otherwise
-            else
+            else if(GriefPrevention.instance.config_trollFilterEnabled)
             {
                 GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.", CustomLogEntryTypes.AdminActivity);
                 GriefPrevention.instance.dataStore.toggleSoftMute(player.getUniqueId());
@@ -1160,7 +1162,8 @@ class PlayerEventHandler implements Listener
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		
 		//FEATURE: prevent players from using ender pearls to gain access to secured claims
-		if(event.getCause() == TeleportCause.ENDER_PEARL && GriefPrevention.instance.config_claims_enderPearlsRequireAccessTrust)
+		TeleportCause cause = event.getCause();
+		if(cause == TeleportCause.CHORUS_FRUIT || (cause == TeleportCause.ENDER_PEARL && GriefPrevention.instance.config_claims_enderPearlsRequireAccessTrust))
 		{
 			Claim toClaim = this.dataStore.getClaimAt(event.getTo(), false, playerData.lastClaim);
 			if(toClaim != null)
@@ -1171,7 +1174,10 @@ class PlayerEventHandler implements Listener
 				{
 					GriefPrevention.sendMessage(player, TextMode.Err, noAccessReason);
 					event.setCancelled(true);
-					player.getInventory().addItem(new ItemStack(Material.ENDER_PEARL));
+					if(cause == TeleportCause.ENDER_PEARL)
+						player.getInventory().addItem(new ItemStack(Material.ENDER_PEARL));
+					else
+						player.getInventory().addItem(new ItemStack(Material.CHORUS_FRUIT));
 				}
 			}
 		}
@@ -1382,7 +1388,7 @@ class PlayerEventHandler implements Listener
         }
 		
 		//if preventing theft, prevent leashing claimed creatures
-		if(GriefPrevention.instance.config_claims_preventTheft && entity instanceof Creature && player.getItemInHand().getType() == Material.LEASH)
+		if(GriefPrevention.instance.config_claims_preventTheft && entity instanceof Creature && GriefPrevention.instance.getItemInHand(player, event.getHand()).getType() == Material.LEASH)
 		{
 		    Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, playerData.lastClaim);
             if(claim != null)
@@ -1609,6 +1615,8 @@ class PlayerEventHandler implements Listener
 	    if(action == Action.LEFT_CLICK_AIR) return;
 	    if(action == Action.PHYSICAL) return;
 	    
+	    if(event.getHand() == EquipmentSlot.OFF_HAND) return;
+	    
 	    Player player = event.getPlayer();
 		Block clickedBlock = event.getClickedBlock(); //null returned here means interacting with air
 		
@@ -1823,7 +1831,7 @@ class PlayerEventHandler implements Listener
 			if(action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) return;
 			
 			//what's the player holding?
-			ItemStack itemInHand = player.getItemInHand();
+			ItemStack itemInHand = GriefPrevention.instance.getItemInHand(player, event.getHand());
 			Material materialInHand = itemInHand.getType();		
 			
 			//if it's bonemeal or armor stand or spawn egg, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
@@ -2034,6 +2042,8 @@ class PlayerEventHandler implements Listener
 			
 			//if it's a golden shovel
 			else if(materialInHand != GriefPrevention.instance.config_claims_modificationTool) return;
+			
+			event.setCancelled(true); //GriefPrevention exclusively reserves this tool  (e.g. no grass path creation for golden shovel)
 			
 			//disable golden shovel while under siege
 			if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());

@@ -58,6 +58,7 @@ import org.bukkit.command.*;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.PluginManager;
@@ -184,6 +185,7 @@ public class GriefPrevention extends JavaPlugin
 	public boolean config_zombiesBreakDoors;						//whether or not hard-mode zombies may break down wooden doors
 	
 	public int config_ipLimit;                                      //how many players can share an IP address
+	public boolean config_trollFilterEnabled;                       //whether to auto-mute new players who use banned words right after joining
 	
 	public MaterialCollection config_mods_accessTrustIds;			//list of block IDs which should require /accesstrust for player interaction
 	public MaterialCollection config_mods_containerTrustIds;		//list of block IDs which should require /containertrust for player interaction
@@ -588,6 +590,7 @@ public class GriefPrevention extends JavaPlugin
         whisperCommandsToMonitor = config.getString("GriefPrevention.Spam.WhisperSlashCommands", whisperCommandsToMonitor);
         
         this.config_smartBan = config.getBoolean("GriefPrevention.SmartBan", true);
+        this.config_trollFilterEnabled = config.getBoolean("GriefPrevention.Mute New Players Using Banned Words", true);
         this.config_ipLimit = config.getInt("GriefPrevention.MaxPlayersPerIpAddress", 3); 
         
         this.config_endermenMoveBlocks = config.getBoolean("GriefPrevention.EndermenMoveBlocks", false);
@@ -833,6 +836,7 @@ public class GriefPrevention extends JavaPlugin
         outConfig.set("GriefPrevention.AdminsGetSignNotifications", this.config_signNotifications);
         
         outConfig.set("GriefPrevention.SmartBan", this.config_smartBan);
+        outConfig.set("GriefPrevention.Mute New Players Using Banned Words", this.config_trollFilterEnabled);
         outConfig.set("GriefPrevention.MaxPlayersPerIpAddress", this.config_ipLimit);
         
         outConfig.set("GriefPrevention.Siege.Worlds", siegeEnabledWorldNames);
@@ -986,8 +990,18 @@ public class GriefPrevention extends JavaPlugin
             
             PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
             
-            //default is chest claim radius
+            //if he's at the claim count per player limit already and doesn't have permission to bypass, display an error message
+	        if(GriefPrevention.instance.config_claims_maxClaimsPerPlayer > 0 &&
+	           !player.hasPermission("griefprevention.overrideclaimcountlimit") &&
+	           playerData.getClaims().size() >= GriefPrevention.instance.config_claims_maxClaimsPerPlayer)
+	        {
+	            GriefPrevention.sendMessage(player, TextMode.Err, Messages.ClaimCreationFailedOverClaimCountLimit);
+	            return true;
+	        }
+            
+            //default is chest claim radius, unless -1
             int radius = GriefPrevention.instance.config_claims_automaticClaimsForNewPlayersRadius;
+            if(radius < 0) radius = (int)Math.ceil(Math.sqrt(GriefPrevention.instance.config_claims_minArea) / 2);
             
             //if player has any claims, respect claim minimum size setting
             if(playerData.getClaims().size() > 0)
@@ -3728,5 +3742,11 @@ public class GriefPrevention extends JavaPlugin
                 player.kickPlayer(reason);
             }
         }
+    }
+    
+    public ItemStack getItemInHand(Player player, EquipmentSlot hand)
+    {
+        if(hand == EquipmentSlot.OFF_HAND) return player.getInventory().getItemInOffHand();
+        return player.getInventory().getItemInMainHand();
     }
 }

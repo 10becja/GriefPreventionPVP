@@ -809,7 +809,8 @@ public class EntityEventHandler implements Listener
 	        //if the damaged entity is a claimed item frame or armor stand, the damager needs to be a player with container trust in the claim
 		    if(subEvent.getEntityType() == EntityType.ITEM_FRAME
 		       || subEvent.getEntityType() == EntityType.ARMOR_STAND
-		       || subEvent.getEntityType() == EntityType.VILLAGER)
+		       || subEvent.getEntityType() == EntityType.VILLAGER
+		       || subEvent.getEntityType() == EntityType.ENDER_CRYSTAL)
 		    	
 		    {
 		        //allow for disabling villager protections in the config
@@ -896,7 +897,14 @@ public class EntityEventHandler implements Listener
 				PlayerData playerData = null;
 				
 				//if not a player or an explosive, allow
-				if(attacker == null && damageSource != null && !(damageSource instanceof Projectile) && damageSource.getType() != EntityType.CREEPER && !(damageSource instanceof Explosive) && !(damageSource instanceof ExplosiveMinecart))
+				if(attacker == null 
+						&& damageSource != null 
+						&& damageSource.getType() != EntityType.CREEPER
+						&& damageSource.getType() != EntityType.ENDER_CRYSTAL
+						&& damageSource.getType() != EntityType.AREA_EFFECT_CLOUD
+						&& !(damageSource instanceof Projectile) 
+						&& !(damageSource instanceof Explosive) 
+						&& !(damageSource instanceof ExplosiveMinecart))
 				{
 					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
 					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))

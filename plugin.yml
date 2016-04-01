@@ -1,10 +1,10 @@
 name: GriefPrevention
 description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
-softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands]
+softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands, MultiWorld]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 13.9.1
+version: 14.3
 commands:
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console

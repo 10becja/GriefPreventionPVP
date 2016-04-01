@@ -29,6 +29,7 @@ import me.ryanhamshire.GriefPrevention.events.ClaimDeletedEvent;
 import org.bukkit.*;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Tameable;
@@ -582,13 +583,16 @@ public abstract class DataStore
         for(Long chunkHash : chunkHashes)
         {
             ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkHash);
-            for(int j = 0; j < claimsInChunk.size(); j++)
+            if(claimsInChunk != null)
             {
-                if(claimsInChunk.get(j).id.equals(claim.id))
-                {
-                    claimsInChunk.remove(j);
-                    break;
-                }
+	            for(int j = 0; j < claimsInChunk.size(); j++)
+	            {
+	                if(claimsInChunk.get(j).id.equals(claim.id))
+	                {
+	                    claimsInChunk.remove(j);
+	                    break;
+	                }
+	            }
             }
         }
 		
@@ -627,10 +631,21 @@ public abstract class DataStore
                     if(entity instanceof Tameable)
                     {
                         Tameable pet = (Tameable)entity;
-                        if(pet.isTamed() && pet.getOwner().getUniqueId().equals(claim.ownerID))
-                        {
-                            pet.setTamed(false);
-                        }
+                        if(pet.isTamed())
+                        {		                          
+                            AnimalTamer owner = pet.getOwner();
+                            if(owner != null)
+                            {
+                                UUID ownerID = owner.getUniqueId();
+                                if(ownerID != null)
+                                {
+                                    if(ownerID.equals(claim.ownerID))
+                                    {
+                                        pet.setTamed(false);
+                                    }
+                                }
+                            }
+                        }		                          
                     }
                 }
             }
