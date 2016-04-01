@@ -185,8 +185,9 @@ public class GriefPrevention extends JavaPlugin
 	public boolean config_zombiesBreakDoors;						//whether or not hard-mode zombies may break down wooden doors
 	
 	public int config_ipLimit;                                      //how many players can share an IP address
+	
 	public boolean config_trollFilterEnabled;                       //whether to auto-mute new players who use banned words right after joining
-		
+	
 	public MaterialCollection config_mods_accessTrustIds;			//list of block IDs which should require /accesstrust for player interaction
 	public MaterialCollection config_mods_containerTrustIds;		//list of block IDs which should require /containertrust for player interaction
 	public List<String> config_mods_ignoreClaimsAccounts;			//list of player names which ALWAYS ignore claims

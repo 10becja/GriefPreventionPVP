@@ -1178,7 +1178,6 @@ class PlayerEventHandler implements Listener
 						player.getInventory().addItem(new ItemStack(Material.ENDER_PEARL));
 					else
 						player.getInventory().addItem(new ItemStack(Material.CHORUS_FRUIT));
-
 				}
 			}
 		}

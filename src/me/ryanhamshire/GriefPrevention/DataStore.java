@@ -632,8 +632,8 @@ public abstract class DataStore
                     {
                         Tameable pet = (Tameable)entity;
                         if(pet.isTamed())
-                        {		                          
-
+                        {
+                        		               
                             AnimalTamer owner = pet.getOwner();
                             if(owner != null)
                             {

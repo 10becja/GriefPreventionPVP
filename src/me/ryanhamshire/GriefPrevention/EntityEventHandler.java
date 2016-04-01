@@ -904,7 +904,6 @@ public class EntityEventHandler implements Listener
 						&& !(damageSource instanceof Projectile) 
 						&& !(damageSource instanceof Explosive) 
 						&& !(damageSource instanceof ExplosiveMinecart))
-
 				{
 					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
 					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))
