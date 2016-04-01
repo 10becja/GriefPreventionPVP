@@ -47,8 +47,6 @@ class CleanupUnusedClaimPreTask implements Runnable
 	    	GriefPrevention.AddLogEntry("Player exempt from claim expiration based on claim block counts vs. config file settings.", CustomLogEntryTypes.Debug, true);
 	    	return;	    	
 	    }
-	    if(bonusBlocks >= GriefPrevention.instance.config_claims_expirationExemptionBonusBlocks) return;
-	    if(bonusBlocks + ownerData.getAccruedClaimBlocks() >= GriefPrevention.instance.config_claims_expirationExemptionTotalBlocks) return;
 		
 	    //pass it back to the main server thread, where it's safe to delete a claim if needed
 	    Bukkit.getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, new CleanupUnusedClaimTask(claim, ownerData), 1L);

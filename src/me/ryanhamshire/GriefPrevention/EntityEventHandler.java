@@ -811,7 +811,6 @@ public class EntityEventHandler implements Listener
 		       || subEvent.getEntityType() == EntityType.ARMOR_STAND
 		       || subEvent.getEntityType() == EntityType.VILLAGER
 		       || subEvent.getEntityType() == EntityType.ENDER_CRYSTAL)
-		    	
 		    {
 		        //allow for disabling villager protections in the config
 		        if(subEvent.getEntityType() == EntityType.VILLAGER && !GriefPrevention.instance.config_claims_protectCreatures) return;
@@ -905,6 +904,7 @@ public class EntityEventHandler implements Listener
 						&& !(damageSource instanceof Projectile) 
 						&& !(damageSource instanceof Explosive) 
 						&& !(damageSource instanceof ExplosiveMinecart))
+
 				{
 					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
 					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))
@@ -1141,6 +1141,7 @@ public class EntityEventHandler implements Listener
 	    for(PotionEffect effect : effects)
 	    {
 	        PotionEffectType effectType = effect.getType();
+
 	        //restrict some potions on claimed animals (griefers could use this to kill or steal animals over fences)
 	        if(effectType.getName().equals("JUMP") || effectType.getName().equals("POISON"))
 	        {

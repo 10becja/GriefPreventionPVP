@@ -585,14 +585,14 @@ public abstract class DataStore
             ArrayList<Claim> claimsInChunk = this.chunksToClaimsMap.get(chunkHash);
             if(claimsInChunk != null)
             {
-	            for(int j = 0; j < claimsInChunk.size(); j++)
-	            {
-	                if(claimsInChunk.get(j).id.equals(claim.id))
-	                {
-	                    claimsInChunk.remove(j);
-	                    break;
-	                }
-	            }
+                for(int j = 0; j < claimsInChunk.size(); j++)
+                {
+                    if(claimsInChunk.get(j).id.equals(claim.id))
+                    {
+                        claimsInChunk.remove(j);
+                        break;
+                    }
+                }
             }
         }
 		
@@ -633,6 +633,7 @@ public abstract class DataStore
                         Tameable pet = (Tameable)entity;
                         if(pet.isTamed())
                         {		                          
+
                             AnimalTamer owner = pet.getOwner();
                             if(owner != null)
                             {
