@@ -72,6 +72,11 @@ commands:
       usage: /AdjustBonusClaimBlocks <player> <amount>
       permission: griefprevention.adjustclaimblocks
       aliases: acb
+   adjustaccruedclaimblocks:
+      description: Adds or subtracts accrued claim blocks.
+      usage: /AdjustAccruedClaimBlocks <player> <amount>
+      permission: griefprevention.adjustclaimblocks
+      aliases: aab
    setaccruedclaimblocks:
       description: Updates a player's accrued claim block total.
       usage: /SetAccruedClaimBlocks <player> <amount>

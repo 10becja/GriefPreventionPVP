@@ -2194,6 +2194,53 @@ public class GriefPrevention extends JavaPlugin
 			return true;			
 		}
 		
+		//adjustaccruedclaimblocks <player> <amount>
+		else if(cmd.getName().equalsIgnoreCase("adjustaccruedclaimblocks"))
+		{
+			//requires exactly two parameters, the other player or group's name and the adjustment
+			if(args.length != 2) return false;
+			
+			//parse the adjustment amount
+			int adjustment;			
+			try
+			{
+				adjustment = Integer.parseInt(args[1]);
+			}
+			catch(NumberFormatException numberFormatException)
+			{
+				return false;  //causes usage to be displayed
+			}
+			
+			//otherwise, find the specified player
+			OfflinePlayer targetPlayer;
+			try
+			{
+			    UUID playerID = UUID.fromString(args[0]);
+			    targetPlayer = this.getServer().getOfflinePlayer(playerID);
+			    
+			}
+			catch(IllegalArgumentException e)
+			{
+    			targetPlayer = this.resolvePlayerByName(args[0]);
+			}
+			
+			if(targetPlayer == null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
+                return true;
+            }
+			
+			//give blocks to player
+			PlayerData playerData = this.dataStore.getPlayerData(targetPlayer.getUniqueId());
+			playerData.setAccruedClaimBlocks(playerData.getAccruedClaimBlocks() + adjustment);
+			this.dataStore.savePlayerData(targetPlayer.getUniqueId(), playerData);
+			
+			GriefPrevention.sendMessage(player, TextMode.Success, Messages.AdjustBlocksSuccess, targetPlayer.getName(), String.valueOf(adjustment), String.valueOf(playerData.getAccruedClaimBlocks()));
+			if(player != null) GriefPrevention.AddLogEntry(player.getName() + " adjusted " + targetPlayer.getName() + "'s accrued claim blocks by " + adjustment + ".", CustomLogEntryTypes.AdminActivity);
+			
+			return true;			
+		}
+		
 		//setaccruedclaimblocks <player> <amount>
         else if(cmd.getName().equalsIgnoreCase("setaccruedclaimblocks"))
         {
