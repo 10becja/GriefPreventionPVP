@@ -737,6 +737,7 @@ class PlayerEventHandler implements Listener
     void onInventoryOpen (InventoryOpenEvent event){
     	if(event.isCancelled()) return;
     	Location loc = event.getInventory().getLocation();
+    	if(loc == null) return;
     	Claim claim = this.dataStore.getClaimAt(loc, false, null);
     	if(claim == null) return;
     	Player player = (Player) event.getPlayer();
