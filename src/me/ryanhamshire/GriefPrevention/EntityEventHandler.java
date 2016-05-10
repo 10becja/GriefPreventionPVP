@@ -56,11 +56,13 @@ import org.bukkit.entity.Tameable;
 import org.bukkit.entity.ThrownPotion;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WaterMob;
+import org.bukkit.entity.Zombie;
 import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityBreakDoorEvent;
@@ -98,7 +100,21 @@ public class EntityEventHandler implements Listener
 		this.dataStore = dataStore;
 	}
 	
-	//don't allow endermen to change blocks
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+	public void onEntityFormBlock(EntityBlockFormEvent event)
+	{
+	    Entity entity = event.getEntity();
+	    if(entity.getType() == EntityType.PLAYER)
+        {
+            Player player = (Player)event.getEntity();
+            String noBuildReason = GriefPrevention.instance.allowBuild(player, event.getBlock().getLocation(), event.getNewState().getType());
+            if(noBuildReason != null)
+            {
+                event.setCancelled(true);
+            }
+        }
+	}
+	
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onEntityChangeBLock(EntityChangeBlockEvent event)
 	{
@@ -123,10 +139,22 @@ public class EntityEventHandler implements Listener
 			event.setCancelled(true);
 		}
 	    
-	    //don't allow crops to be trampled
+	    //don't allow crops to be trampled, except by a player with build permission
 		else if(event.getTo() == Material.DIRT && event.getBlock().getType() == Material.SOIL)
 		{
-		    event.setCancelled(true);
+		    if(event.getEntityType() != EntityType.PLAYER)
+		    {
+		        event.setCancelled(true);
+		    }
+		    else
+		    {
+		        Player player = (Player)event.getEntity();
+		        Block block = event.getBlock();
+		        if(GriefPrevention.instance.allowBreak(player, block, block.getLocation()) != null)
+		        {
+		            event.setCancelled(true);
+		        }
+		    }
 		}
 		
 		//sand cannon fix - when the falling block doesn't fall straight down, take additional anti-grief steps
@@ -448,11 +476,8 @@ public class EntityEventHandler implements Listener
 		//if involved in a siege
 		if(playerData.siegeData != null)
 		{
-			//don't drop items as usual, they will be sent to the siege winner
-			event.getDrops().clear();
-			
 			//end it, with the dieing player being the loser
-			this.dataStore.endSiege(playerData.siegeData, null, player.getName(), true /*ended due to death*/);
+			this.dataStore.endSiege(playerData.siegeData, null, player.getName(), event.getDrops());
 		}
 		
 		//FEATURE: lock dropped items to player who dropped them
@@ -506,7 +531,7 @@ public class EntityEventHandler implements Listener
 	}
 	
 	//when a painting is broken
-	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onHangingBreak(HangingBreakEvent event)
     {
 	    //don't track in worlds where claims are not enabled
@@ -585,19 +610,28 @@ public class EntityEventHandler implements Listener
 		}
 	}
 	
+	private boolean isMonster(Entity entity)
+    {
+        if(entity instanceof Monster) return true;
+        
+        EntityType type = entity.getType();
+        if(type == EntityType.GHAST || type == EntityType.MAGMA_CUBE || type == EntityType.SHULKER) return true;
+        
+        if(type == EntityType.RABBIT)
+        {
+            Rabbit rabbit = (Rabbit)entity;
+            if(rabbit.getRabbitType() == Rabbit.Type.THE_KILLER_BUNNY) return true;
+        }
+        
+        return false;
+    }
+	
 	//when an entity is damaged
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onEntityDamage (EntityDamageEvent event)
 	{
 		//monsters are never protected
-		if(event.getEntity() instanceof Monster) return;
-		
-		//nor are killer bunnies
-		if(event.getEntity() instanceof Rabbit)
-		{
-			Rabbit rabbit = (Rabbit)event.getEntity();
-			if(rabbit.getRabbitType() == Rabbit.Type.THE_KILLER_BUNNY) return;
-		}
+		if(isMonster(event.getEntity())) return;
 		
 		//horse protections can be disabled
 		if(event.getEntity() instanceof Horse && !GriefPrevention.instance.config_claims_protectHorses) return;
@@ -656,6 +690,40 @@ public class EntityEventHandler implements Listener
     				attacker = (Player)arrow.getShooter();
     			}
     		}
+    		
+    		//protect players from lingering potion damage when protected from pvp
+            if(damageSource.getType() == EntityType.AREA_EFFECT_CLOUD && event.getEntityType() == EntityType.PLAYER && GriefPrevention.instance.pvpRulesApply(event.getEntity().getWorld()))
+            {
+                Player damaged = (Player)event.getEntity();
+                PlayerData damagedData = GriefPrevention.instance.dataStore.getPlayerData(damaged.getUniqueId());
+                
+                //case 1: recently spawned
+                if(GriefPrevention.instance.config_pvp_protectFreshSpawns && damagedData.pvpImmune)
+                {
+                    event.setCancelled(true);
+                    return;
+                }
+                
+                //case 2: in a pvp safe zone
+                else
+                {
+                    Claim damagedClaim = GriefPrevention.instance.dataStore.getClaimAt(damaged.getLocation(), false, damagedData.lastClaim);
+                    if(damagedClaim != null)
+                    {
+                        damagedData.lastClaim = damagedClaim;
+                        if(GriefPrevention.instance.claimIsPvPSafeZone(damagedClaim))
+                        {
+                            PreventPvPEvent pvpEvent = new PreventPvPEvent(damagedClaim);
+                            Bukkit.getPluginManager().callEvent(pvpEvent);
+                            if(!pvpEvent.isCancelled())
+                            {
+                                event.setCancelled(true);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
 		}
 		
 		//if the attacker is a player and defender is a player (pvp combat)
@@ -694,16 +762,11 @@ public class EntityEventHandler implements Listener
     				Claim attackerClaim = this.dataStore.getClaimAt(attacker.getLocation(), false, attackerData.lastClaim);
     				Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
     				
-    				if(	attackerClaim != null && !attackerClaim.isPvpAllowed &&
-    					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-    					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-    					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+    				if(!attackerData.ignoreClaims && !attackerClaim.isPvpAllowed)
     				{
     				    if(	attackerClaim != null && //ignore claims mode allows for pvp inside land claims
     				        !attackerData.inPvpCombat() &&
-        					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-        					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-        					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+        					GriefPrevention.instance.claimIsPvPSafeZone(attackerClaim))
         				{
         					attackerData.lastClaim = attackerClaim;
         					PreventPvPEvent pvpEvent = new PreventPvPEvent(attackerClaim);
@@ -716,11 +779,9 @@ public class EntityEventHandler implements Listener
                             }
         				}
         				
-        				if( defenderClaim != null &&
+        				if( defenderClaim != null && !defenderClaim.isPvpAllowed &&
         				    !defenderData.inPvpCombat() &&
-        				    (defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-        		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-        					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+        				    GriefPrevention.instance.claimIsPvPSafeZone(defenderClaim))
         				{
         					defenderData.lastClaim = defenderClaim;
         					PreventPvPEvent pvpEvent = new PreventPvPEvent(defenderClaim);
@@ -732,40 +793,7 @@ public class EntityEventHandler implements Listener
             					return;
         					}
         				}
-    				}
-    				
-    				if( defenderClaim != null && !defenderClaim.isPvpAllowed &&
-    					(defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-    		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-    					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
-    				{
-	    				if(!attackerData.ignoreClaims)
-	    				{
-	    				    if(	attackerClaim != null && //ignore claims mode allows for pvp inside land claims
-	    				        !attackerData.inPvpCombat() &&
-	        					(attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-	        					 attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-	        					!attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
-	        				{
-	        					attackerData.lastClaim = attackerClaim;
-	        					event.setCancelled(true);
-	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.CantFightWhileImmune);
-	        					return;
-	        				}
-	        				
-	        				if( defenderClaim != null &&
-	        				    !defenderData.inPvpCombat() &&
-	        				    (defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-	        		             defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-	        					!defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
-	        				{
-	        					defenderData.lastClaim = defenderClaim;
-	        					event.setCancelled(true);
-	        					GriefPrevention.sendMessage(attacker, TextMode.Err, Messages.PlayerInPvPSafeZone);
-	        					return;
-	        				}
-	    				}
-    				}
+					}
     			}
     			
     			//only place someone in combat, blah blah, if the event isn't canceled
@@ -896,14 +924,14 @@ public class EntityEventHandler implements Listener
 				PlayerData playerData = null;
 				
 				//if not a player or an explosive, allow
-				if(attacker == null 
-						&& damageSource != null 
-						&& damageSource.getType() != EntityType.CREEPER
-						&& damageSource.getType() != EntityType.ENDER_CRYSTAL
-						&& damageSource.getType() != EntityType.AREA_EFFECT_CLOUD
-						&& !(damageSource instanceof Projectile) 
-						&& !(damageSource instanceof Explosive) 
-						&& !(damageSource instanceof ExplosiveMinecart))
+				if(attacker == null
+				        && damageSource != null
+		                && damageSource.getType() != EntityType.CREEPER
+		                && damageSource.getType() != EntityType.ENDER_CRYSTAL
+		                && damageSource.getType() != EntityType.AREA_EFFECT_CLOUD
+		                && !(damageSource instanceof Projectile)
+				        && !(damageSource instanceof Explosive)
+				        && !(damageSource instanceof ExplosiveMinecart))
 				{
 					//check if it's not a zombie attacking a villager first... this whole block is a bit muddled IMO
 					if(!(damageSource.getType() == EntityType.ZOMBIE && event.getEntity() instanceof Villager))
@@ -936,7 +964,7 @@ public class EntityEventHandler implements Listener
 					if(attacker == null)
 					{
 						//exception case
-						if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Monster)
+						if(event.getEntity() instanceof Villager && damageSource != null && damageSource instanceof Zombie)
 						{
 							return;
 						}
@@ -1183,10 +1211,7 @@ public class EntityEventHandler implements Listener
 	                PlayerData defenderData = this.dataStore.getPlayerData(effectedPlayer.getUniqueId());
 	                PlayerData attackerData = this.dataStore.getPlayerData(thrower.getUniqueId());
 	                Claim attackerClaim = this.dataStore.getClaimAt(thrower.getLocation(), false, attackerData.lastClaim);
-	                if( attackerClaim != null && 
-	                    (attackerClaim.isAdminClaim() && attackerClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-	                     attackerClaim.isAdminClaim() && attackerClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-	                    !attackerClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	                if(attackerClaim != null && GriefPrevention.instance.claimIsPvPSafeZone(attackerClaim))
 	                {
 	                    attackerData.lastClaim = attackerClaim;
 	                    PreventPvPEvent pvpEvent = new PreventPvPEvent(attackerClaim);
@@ -1200,10 +1225,7 @@ public class EntityEventHandler implements Listener
 	                }
 	                
 	                Claim defenderClaim = this.dataStore.getClaimAt(effectedPlayer.getLocation(), false, defenderData.lastClaim);
-	                if( defenderClaim != null &&
-	                    (defenderClaim.isAdminClaim() && defenderClaim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
-	                     defenderClaim.isAdminClaim() && defenderClaim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
-	                    !defenderClaim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims))
+	                if(defenderClaim != null && GriefPrevention.instance.claimIsPvPSafeZone(defenderClaim))
 	                {
 	                    defenderData.lastClaim = defenderClaim;
 	                    PreventPvPEvent pvpEvent = new PreventPvPEvent(defenderClaim);

@@ -1,10 +1,10 @@
 name: GriefPrevention
 description: A fork of the GriefPrevention plugin that allows players to toggle pvp, and eject unwanted players
 main: me.ryanhamshire.GriefPrevention.GriefPrevention
-softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands, MultiWorld]
+softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands, MultiWorld, Denizen]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 14.3
+version: 14.5.4
 commands:
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
@@ -91,6 +91,16 @@ commands:
       description: Deletes all of another player's claims.
       usage: /DeleteAllClaims <player>
       permission: griefprevention.deleteclaims
+   deleteclaimsinworld:
+      description: Deletes all the claims in a world.  Only usable at the server console.
+      usage: /DeleteClaimsInWorld <world>
+      aliases: [deleteallclaimsinworld, clearclaimsinworld, clearallclaimsinworld]
+      permission: griefprevention.deleteclaimsinworld
+   deleteuserclaimsinworld:
+      description: Deletes all the non-admin claims in a world.  Only usable at the server console.
+      usage: /DeleteUserClaimsInWorld <world>
+      aliases: [deletealluserclaimsinworld, clearuserclaimsinworld, clearalluserclaimsinworld]
+      permission: griefprevention.deleteclaimsinworld
    adminclaims:
       description: Switches the shovel tool to administrative claims mode.
       usage: /AdminClaims
@@ -256,6 +266,7 @@ permissions:
             griefprevention.notignorable: true
             griefprevention.seeinactivity: true
             griefprevention.eavesdropimmune: true
+            griefprevention.deleteclaimsinworld: true
     griefprevention.siegeimmune:
         description: Makes a player immune to /Siege.
         default: op
@@ -288,6 +299,9 @@ permissions:
         default: op
     griefprevention.deleteclaims:
         description: Grants permission to delete other players' claims.
+        default: op
+    griefprevention.deleteclaimsinworld:
+        description: Not used.  DeleteClaimsInWorld must be executed at the server console.
         default: op
     griefprevention.adjustclaimblocks:
         description: Grants permission to add or remove bonus blocks from a player's account.

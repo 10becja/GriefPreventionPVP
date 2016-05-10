@@ -19,10 +19,11 @@
  package me.ryanhamshire.GriefPrevention;
 
 import java.util.Calendar;
-
+import java.util.Date;
 import java.util.Vector;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 
 import me.ryanhamshire.GriefPrevention.events.ClaimExpirationEvent;
 
@@ -30,11 +31,13 @@ class CleanupUnusedClaimTask implements Runnable
 {	
     Claim claim;
     PlayerData ownerData;
+    OfflinePlayer ownerInfo;
 	
-	CleanupUnusedClaimTask(Claim claim, PlayerData ownerData)
+	CleanupUnusedClaimTask(Claim claim, PlayerData ownerData, OfflinePlayer ownerInfo)
 	{
 		this.claim = claim;
 		this.ownerData = ownerData;
+		this.ownerInfo = ownerInfo;
 	}
 	
 	@Override
@@ -58,7 +61,7 @@ class CleanupUnusedClaimTask implements Runnable
             //if the owner has been gone at least a week, and if he has ONLY the new player claim, it will be removed
 	        Calendar sevenDaysAgo = Calendar.getInstance();
 	        sevenDaysAgo.add(Calendar.DATE, -GriefPrevention.instance.config_claims_chestClaimExpirationDays);
-	        boolean newPlayerClaimsExpired = sevenDaysAgo.getTime().after(ownerData.getLastLogin());
+	        boolean newPlayerClaimsExpired = sevenDaysAgo.getTime().after(new Date(ownerInfo.getLastPlayed()));
 			if(newPlayerClaimsExpired && ownerData.getClaims().size() == 1)
 			{
 				claim.removeSurfaceFluids(null);
@@ -80,7 +83,7 @@ class CleanupUnusedClaimTask implements Runnable
 			Calendar earliestPermissibleLastLogin = Calendar.getInstance();
 			earliestPermissibleLastLogin.add(Calendar.DATE, -GriefPrevention.instance.config_claims_expirationDays);
 			
-			if(earliestPermissibleLastLogin.getTime().after(ownerData.getLastLogin()))
+			if(earliestPermissibleLastLogin.getTime().after(new Date(ownerInfo.getLastPlayed())))
 			{
 				//make a copy of this player's claim list
 				Vector<Claim> claims = new Vector<Claim>();
@@ -119,7 +122,7 @@ class CleanupUnusedClaimTask implements Runnable
 			    //if the owner has been gone at least a week, and if he has ONLY the new player claim, it will be removed
 	            Calendar sevenDaysAgo = Calendar.getInstance();
 	            sevenDaysAgo.add(Calendar.DATE, -GriefPrevention.instance.config_claims_unusedClaimExpirationDays);
-	            boolean claimExpired = sevenDaysAgo.getTime().after(ownerData.getLastLogin());
+	            boolean claimExpired = sevenDaysAgo.getTime().after(new Date(ownerInfo.getLastPlayed()));
 	            if(claimExpired)
 	            {
     			    GriefPrevention.instance.dataStore.deleteClaim(claim, true, true);

@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
 
 
 
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -62,6 +63,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
@@ -516,6 +518,7 @@ class PlayerEventHandler implements Listener
 		if(category == CommandCategory.Whisper && args.length > 1)
 		{
 		    //determine target player, might be NULL
+            @SuppressWarnings("deprecation")
             Player targetPlayer = GriefPrevention.instance.getServer().getPlayer(args[1]);
 		    
             //softmute feature
@@ -729,6 +732,24 @@ class PlayerEventHandler implements Listener
 
     //counts how many players are using each IP address connected to the server right now
     private ConcurrentHashMap<String, Integer> ipCountHash = new ConcurrentHashMap<String, Integer>();
+    
+    @EventHandler(priority = EventPriority.HIGHEST)
+    void onInventoryOpen (InventoryOpenEvent event){
+    	if(event.isCancelled()) return;
+    	Location loc = event.getInventory().getLocation();
+    	Claim claim = this.dataStore.getClaimAt(loc, false, null);
+    	if(claim == null) return;
+    	Player player = (Player) event.getPlayer();
+    	
+    	String noContainersReason = claim.allowContainers(player);
+		if(noContainersReason != null)
+		{
+			GriefPrevention.sendMessage(player, TextMode.Err, noContainersReason);
+			event.setCancelled(true);
+			return;
+		}
+    	
+    }
 	
 	//when a player attempts to join the server...
 	@EventHandler(priority = EventPriority.HIGHEST)
@@ -917,6 +938,15 @@ class PlayerEventHandler implements Listener
         
         //create a thread to load ignore information
         new IgnoreLoaderThread(playerID, playerData.ignoredPlayers).start();
+        Location returnLocation = PlayerEventHandler.portalReturnMap.get(player.getUniqueId());
+        if(returnLocation != null)
+        {
+            PlayerEventHandler.portalReturnMap.remove(player.getUniqueId());
+            if(player.getLocation().getBlock().getType() == Material.PORTAL)
+            {
+                player.teleport(returnLocation);
+            }
+        }
 	}
 	
 	//when a player spawns, conditionally apply temporary pvp protection 
@@ -1099,6 +1129,7 @@ class PlayerEventHandler implements Listener
 		}
 	}
 	
+	static ConcurrentHashMap<UUID, Location> portalReturnMap = new ConcurrentHashMap<UUID, Location>();
 	//when a player teleports via a portal
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
 	void onPlayerPortal(PlayerPortalEvent event) 
@@ -1115,7 +1146,8 @@ class PlayerEventHandler implements Listener
         {
             //FEATURE: when players get trapped in a nether portal, send them back through to the other side
             CheckForPortalTrapTask task = new CheckForPortalTrapTask(player, event.getFrom());
-            GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 200L);
+            GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1200L);  //after 1 minute
+            portalReturnMap.put(player.getUniqueId(), event.getFrom());
         
             //FEATURE: if the player teleporting doesn't have permission to build a nether portal and none already exists at the destination, cancel the teleportation
             if(GriefPrevention.instance.config_claims_portalsRequirePermission)
@@ -1176,8 +1208,6 @@ class PlayerEventHandler implements Listener
 					event.setCancelled(true);
 					if(cause == TeleportCause.ENDER_PEARL)
 						player.getInventory().addItem(new ItemStack(Material.ENDER_PEARL));
-					else
-						player.getInventory().addItem(new ItemStack(Material.CHORUS_FRUIT));
 				}
 			}
 		}
@@ -1220,17 +1250,13 @@ class PlayerEventHandler implements Listener
 	
 	//when a player interacts with an ArmorStand. Only way to make it work
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-	public void onPlayerInteractArmorStand(PlayerArmorStandManipulateEvent event)
+    public void onPlayerInteractAtEntity(PlayerInteractAtEntityEvent event)
 	{
-		Player player = event.getPlayer();
-		Entity entity = event.getRightClicked();
+        //treat it the same as interacting with an entity in general
+        if(event.getRightClicked().getType() == EntityType.ARMOR_STAND)
 		//dunno if ryan's coded logic for ArmorStand in the build reason, so just check for item frame
-		String noBuildReason = GriefPrevention.instance.allowBuild(player, entity.getLocation(), Material.ITEM_FRAME); 
-		if(noBuildReason != null)
 		{
-			GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
-			event.setCancelled(true);
-			return;
+            this.onPlayerInteractEntity((PlayerInteractEntityEvent)event);
 		}
 	}
  
@@ -1252,7 +1278,9 @@ class PlayerEventHandler implements Listener
         if(entity instanceof Tameable)
         {
             Tameable tameable = (Tameable)entity;
-            if(tameable.isTamed() && tameable.getOwner() != null)
+            if(tameable.isTamed())
+            {
+                if(tameable.getOwner() != null)
             {
                UUID ownerID = tameable.getOwner().getUniqueId();
                
@@ -1282,6 +1310,16 @@ class PlayerEventHandler implements Listener
                    GriefPrevention.sendMessage(player, TextMode.Err, message);
                    event.setCancelled(true);
                    return;
+                   }
+                }
+            }
+            else  //world repair code for a now-fixed GP bug
+            {
+                tameable.setOwner(null);
+                if(tameable instanceof InventoryHolder)
+                {
+                    InventoryHolder holder = (InventoryHolder)tameable;
+                    holder.getInventory().clear();
                }
             }
         }
@@ -1448,7 +1486,7 @@ class PlayerEventHandler implements Listener
 		if(!GriefPrevention.instance.pvpRulesApply(player.getWorld())) return;
 		
 		//if we're preventing spawn camping and the player was previously empty handed...
-		if(GriefPrevention.instance.config_pvp_protectFreshSpawns && (player.getItemInHand().getType() == Material.AIR))
+		if(GriefPrevention.instance.config_pvp_protectFreshSpawns && (GriefPrevention.instance.getItemInHand(player, EquipmentSlot.HAND).getType() == Material.AIR))
 		{
 			//if that player is currently immune to pvp
 			PlayerData playerData = this.dataStore.getPlayerData(event.getPlayer().getUniqueId());
@@ -1615,7 +1653,6 @@ class PlayerEventHandler implements Listener
 	    if(action == Action.LEFT_CLICK_AIR) return;
 	    if(action == Action.PHYSICAL) return;
 	    
-	    if(event.getHand() == EquipmentSlot.OFF_HAND) return;
 	    
 	    Player player = event.getPlayer();
 		Block clickedBlock = event.getClickedBlock(); //null returned here means interacting with air
@@ -1831,7 +1868,8 @@ class PlayerEventHandler implements Listener
 			if(action != Action.RIGHT_CLICK_BLOCK && action != Action.RIGHT_CLICK_AIR) return;
 			
 			//what's the player holding?
-			ItemStack itemInHand = GriefPrevention.instance.getItemInHand(player, event.getHand());
+			EquipmentSlot hand = event.getHand();
+			ItemStack itemInHand = GriefPrevention.instance.getItemInHand(player, hand);
 			Material materialInHand = itemInHand.getType();		
 			
 			//if it's bonemeal or armor stand or spawn egg, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
@@ -1848,7 +1886,13 @@ class PlayerEventHandler implements Listener
 				return;
 			}
 			
-			else if(clickedBlock != null && materialInHand == Material.BOAT)
+			else if(clickedBlock != null && (
+			        materialInHand == Material.BOAT || 
+			        materialInHand == Material.BOAT_ACACIA || 
+			        materialInHand == Material.BOAT_BIRCH || 
+			        materialInHand == Material.BOAT_DARK_OAK || 
+			        materialInHand == Material.BOAT_JUNGLE ||
+			        materialInHand == Material.BOAT_SPRUCE))
 			{
 			    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 			    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
@@ -1886,7 +1930,7 @@ class PlayerEventHandler implements Listener
             }
 			
 			//if it's a spawn egg, minecart, or boat, and this is a creative world, apply special rules
-			else if(clickedBlock != null && (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.BOAT || materialInHand == Material.ARMOR_STAND || materialInHand == Material.ITEM_FRAME || materialInHand == Material.MONSTER_EGG || materialInHand == Material.MONSTER_EGGS || materialInHand == Material.EXPLOSIVE_MINECART || materialInHand == Material.HOPPER_MINECART) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
+			else if(clickedBlock != null && (materialInHand == Material.MINECART || materialInHand == Material.POWERED_MINECART || materialInHand == Material.STORAGE_MINECART || materialInHand == Material.ARMOR_STAND || materialInHand == Material.ITEM_FRAME || materialInHand == Material.MONSTER_EGG || materialInHand == Material.MONSTER_EGGS || materialInHand == Material.EXPLOSIVE_MINECART || materialInHand == Material.HOPPER_MINECART) && GriefPrevention.instance.creativeRulesApply(clickedBlock.getLocation()))
 			{
 				//player needs build permission at this location
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), Material.MINECART);
@@ -1914,7 +1958,7 @@ class PlayerEventHandler implements Listener
 			}
 			
 			//if he's investigating a claim
-			else if(materialInHand == GriefPrevention.instance.config_claims_investigationTool)
+			else if(materialInHand == GriefPrevention.instance.config_claims_investigationTool &&  hand == EquipmentSlot.HAND)
 			{
 		        //if claims are disabled in this world, do nothing
 			    if(!GriefPrevention.instance.claimsEnabledForWorld(player.getWorld())) return;
@@ -2041,7 +2085,7 @@ class PlayerEventHandler implements Listener
             }
 			
 			//if it's a golden shovel
-			else if(materialInHand != GriefPrevention.instance.config_claims_modificationTool) return;
+			else if(materialInHand != GriefPrevention.instance.config_claims_modificationTool || hand != EquipmentSlot.HAND) return;
 			
 			event.setCancelled(true); //GriefPrevention exclusively reserves this tool  (e.g. no grass path creation for golden shovel)
 	
@@ -2596,7 +2640,8 @@ class PlayerEventHandler implements Listener
 	        if(type != Material.AIR && 
 	           (!passThroughWater || type != Material.STATIONARY_WATER) &&
 	           (!passThroughWater || type != Material.WATER) &&
-	           type != Material.LONG_GRASS) return result;
+	           type != Material.LONG_GRASS &&
+               type != Material.SNOW) return result;
 	    }
 	    
 	    return result;

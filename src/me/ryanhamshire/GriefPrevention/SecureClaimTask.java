@@ -50,7 +50,7 @@ class SecureClaimTask implements Runnable
 				if(claim.contains(player.getLocation(), false, false) && claim.allowAccess(player) != null)
 				{
 					GriefPrevention.sendMessage(player, TextMode.Err, Messages.SiegeDoorsLockedEjection);
-					GriefPrevention.ejectPlayer(player);
+					GriefPrevention.instance.ejectPlayer(player);
 				}
 			}
 		}

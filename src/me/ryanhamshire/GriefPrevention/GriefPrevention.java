@@ -42,6 +42,7 @@ import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.Achievement;
 import org.bukkit.BanList;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.ChunkSnapshot;
@@ -1993,6 +1994,42 @@ public class GriefPrevention extends JavaPlugin
 			return true;
 		}
 		
+		else if(cmd.getName().equalsIgnoreCase("deleteclaimsinworld"))
+        {
+		    if(player != null)
+		    {
+		        GriefPrevention.sendMessage(player, TextMode.Err, Messages.ConsoleOnlyCommand);
+		        return true;
+		    }
+            if(args.length != 1) return false;
+            World world = Bukkit.getServer().getWorld(args[0]);
+            if(world == null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.WorldNotFound);
+                return true;
+            }
+            this.dataStore.deleteClaimsInWorld(world, true);
+            GriefPrevention.AddLogEntry("Deleted all claims in world: " + world.getName() + ".", CustomLogEntryTypes.AdminActivity);
+            return true;
+        }
+		else if(cmd.getName().equalsIgnoreCase("deleteclaimsinworld"))
+        {
+            if(player != null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.ConsoleOnlyCommand);
+                return true;
+            }
+            if(args.length != 1) return false;
+            World world = Bukkit.getServer().getWorld(args[0]);
+            if(world == null)
+            {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.WorldNotFound);
+                return true;
+            }
+            this.dataStore.deleteClaimsInWorld(world, false);
+            GriefPrevention.AddLogEntry("Deleted all user claims in world: " + world.getName() + ".", CustomLogEntryTypes.AdminActivity);
+            return true;
+        }
 		//claimbook
         else if(cmd.getName().equalsIgnoreCase("claimbook"))
         {
@@ -3010,6 +3047,7 @@ public class GriefPrevention extends JavaPlugin
         }
     }
 	
+	@SuppressWarnings("deprecation")
 	public OfflinePlayer resolvePlayerByName(String name) 
 	{
 		//try online players first
@@ -3257,6 +3295,7 @@ public class GriefPrevention extends JavaPlugin
 	
 	public String allowBuild(Player player, Location location, Material material)
 	{
+	    if(!GriefPrevention.instance.claimsEnabledForWorld(location.getWorld())) return null;
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		Claim claim = this.dataStore.getClaimAt(location, false, playerData.lastClaim);
 		
@@ -3302,6 +3341,7 @@ public class GriefPrevention extends JavaPlugin
 	
 	public String allowBreak(Player player, Block block, Location location)
 	{
+		if(!GriefPrevention.instance.claimsEnabledForWorld(location.getWorld())) return null;
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		Claim claim = this.dataStore.getClaimAt(location, false, playerData.lastClaim);
 		
@@ -3796,5 +3836,11 @@ public class GriefPrevention extends JavaPlugin
     {
         if(hand == EquipmentSlot.OFF_HAND) return player.getInventory().getItemInOffHand();
         return player.getInventory().getItemInMainHand();
+    }
+    public boolean claimIsPvPSafeZone(Claim claim)
+    {
+        return claim.isAdminClaim() && claim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||
+                claim.isAdminClaim() && claim.parent != null && GriefPrevention.instance.config_pvp_noCombatInAdminSubdivisions ||
+               !claim.isAdminClaim() && GriefPrevention.instance.config_pvp_noCombatInPlayerLandClaims;
     }
 }

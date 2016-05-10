@@ -33,6 +33,7 @@ import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Tameable;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import com.google.common.io.Files;
@@ -643,6 +644,12 @@ public abstract class DataStore
                                     if(ownerID.equals(claim.ownerID))
                                     {
                                         pet.setTamed(false);
+                                        pet.setOwner(null);
+                                        if(pet instanceof InventoryHolder)
+                                        {
+                                            InventoryHolder holder = (InventoryHolder)pet;
+                                            holder.getInventory().clear();
+                                        }
                                     }
                                 }
                             }
@@ -951,7 +958,7 @@ public abstract class DataStore
 	
 	//ends a siege
 	//either winnerName or loserName can be null, but not both
-	synchronized public void endSiege(SiegeData siegeData, String winnerName, String loserName, boolean death)
+	synchronized public void endSiege(SiegeData siegeData, String winnerName, String loserName, List<ItemStack> drops)
 	{
 		boolean grantAccess = false;
 		
@@ -1023,6 +1030,7 @@ public abstract class DataStore
 		//if the claim should be opened to looting
 		if(grantAccess)
 		{
+			@SuppressWarnings("deprecation")
 			Player winner = GriefPrevention.instance.getServer().getPlayer(winnerName);
 			if(winner != null)
 			{
@@ -1036,22 +1044,22 @@ public abstract class DataStore
 		}
 		
 		//if the siege ended due to death, transfer inventory to winner
-		if(death)
+		if(drops != null)
 		{
+			@SuppressWarnings("deprecation")
 			Player winner = GriefPrevention.instance.getServer().getPlayer(winnerName);
+			@SuppressWarnings("deprecation")
 			Player loser = GriefPrevention.instance.getServer().getPlayer(loserName);
 			if(winner != null && loser != null)
 			{
 				//get loser's inventory, then clear it
-				ItemStack [] loserItems = loser.getInventory().getContents();
-				loser.getInventory().clear();
 				
 				//try to add it to the winner's inventory
-				for(int j = 0; j < loserItems.length; j++)
+				for(ItemStack stack : drops)
 				{
-					if(loserItems[j] == null || loserItems[j].getType() == Material.AIR || loserItems[j].getAmount() == 0) continue;
+					if(stack == null || stack.getType() == Material.AIR || stack.getAmount() == 0) continue;
 					
-					HashMap<Integer, ItemStack> wontFitItems = winner.getInventory().addItem(loserItems[j]);
+					HashMap<Integer, ItemStack> wontFitItems = winner.getInventory().addItem(stack);
 					
 					//drop any remainder on the ground at his feet
 					Object [] keys = wontFitItems.keySet().toArray();
@@ -1617,6 +1625,8 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.BookUsefulCommands, "Useful Commands:", null);
 		this.addDefault(defaults, Messages.NoProfanity, "Please moderate your language.", null);
 		this.addDefault(defaults, Messages.IsIgnoringYou, "That player is ignoring you.", null);
+		this.addDefault(defaults, Messages.ConsoleOnlyCommand, "That command may only be executed from the server console.", null);
+		this.addDefault(defaults, Messages.WorldNotFound, "World not found.", null);
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));
@@ -1775,5 +1785,18 @@ public abstract class DataStore
         }
         
         return claims;
+    }
+	void deleteClaimsInWorld(World world, boolean deleteAdminClaims)
+	{
+	    for(int i = 0; i < claims.size(); i++)
+	    {
+	        Claim claim = claims.get(i);
+	        if(claim.getLesserBoundaryCorner().getWorld().equals(world))
+	        {
+	            if(!deleteAdminClaims && claim.isAdminClaim()) continue;
+	            this.deleteClaim(claim, false, false);
+	            i--;
+	        }
+	    }
     }
 }

@@ -62,7 +62,7 @@ class PlayerRescueTask implements Runnable
 		//otherwise find a place to teleport him
 		if(this.destination == null)
 		{
-		    this.destination = GriefPrevention.ejectPlayer(this.player);
+		    this.destination = GriefPrevention.instance.ejectPlayer(this.player);
 		}
 		else
 		{
