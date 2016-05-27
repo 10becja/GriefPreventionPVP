@@ -762,9 +762,9 @@ public class EntityEventHandler implements Listener
     				Claim attackerClaim = this.dataStore.getClaimAt(attacker.getLocation(), false, attackerData.lastClaim);
     				Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
     				
-    				if(!attackerData.ignoreClaims && !attackerClaim.isPvpAllowed)
+    				if(!attackerData.ignoreClaims)
     				{
-    				    if(	attackerClaim != null && //ignore claims mode allows for pvp inside land claims
+    				    if(	attackerClaim != null  && !attackerClaim.isPvpAllowed && //ignore claims mode allows for pvp inside land claims
     				        !attackerData.inPvpCombat() &&
         					GriefPrevention.instance.claimIsPvPSafeZone(attackerClaim))
         				{
