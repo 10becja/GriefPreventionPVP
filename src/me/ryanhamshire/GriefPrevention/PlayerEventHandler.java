@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 
 
 
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -68,6 +69,7 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.MetadataValue;
@@ -736,12 +738,12 @@ class PlayerEventHandler implements Listener
     @EventHandler(priority = EventPriority.HIGHEST)
     void onInventoryOpen (InventoryOpenEvent event){
     	if(event.isCancelled()) return;
-    	Location loc = event.getInventory().getLocation();
+    	Inventory inv = event.getInventory();
+    	Location loc = (inv == null) ? null: inv.getLocation();
     	if(loc == null) return;
     	Claim claim = this.dataStore.getClaimAt(loc, false, null);
     	if(claim == null) return;
-    	Player player = (Player) event.getPlayer();
-    	
+    	Player player = (Player) event.getPlayer();    	
     	String noContainersReason = claim.allowContainers(player);
 		if(noContainersReason != null)
 		{
