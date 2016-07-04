@@ -23,14 +23,13 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
-
-
 
 
 
@@ -193,7 +192,9 @@ class PlayerEventHandler implements Listener
             //otherwise assume chat troll and mute all chat from this sender until an admin says otherwise
             else if(GriefPrevention.instance.config_trollFilterEnabled)
             {
+            	String notificationMessage = "(Auto-Muted " + player.getName() + "): " + message;
                 GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.", CustomLogEntryTypes.AdminActivity);
+                GriefPrevention.AddLogEntry(notificationMessage, CustomLogEntryTypes.MutedChat, false);
                 GriefPrevention.instance.dataStore.toggleSoftMute(player.getUniqueId());
             }
         }
@@ -211,17 +212,20 @@ class PlayerEventHandler implements Listener
     		    PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
     		    for(Player recipient : recipients)
     		    {
-    		        if(playerData.ignoredPlayers.containsKey(recipient.getUniqueId()))
+    		        if(!recipient.hasPermission("griefprevention.notignorable"))
     		        {
-    		            recipientsToRemove.add(recipient);
-    		        }
-    		        else
-    		        {
-    		            PlayerData targetPlayerData = this.dataStore.getPlayerData(recipient.getUniqueId());
-    		            if(targetPlayerData.ignoredPlayers.containsKey(player.getUniqueId()))
-    		            {
-    		                recipientsToRemove.add(recipient);
-    		            }
+        		        if(playerData.ignoredPlayers.containsKey(recipient.getUniqueId()))
+        		        {
+        		            recipientsToRemove.add(recipient);
+        		        }
+        		        else
+        		        {
+        		            PlayerData targetPlayerData = this.dataStore.getPlayerData(recipient.getUniqueId());
+        		            if(targetPlayerData.ignoredPlayers.containsKey(player.getUniqueId()))
+        		            {
+        		                recipientsToRemove.add(recipient);
+        		            }
+        		        }
     		        }
     		    }
     		    
@@ -950,6 +954,22 @@ class PlayerEventHandler implements Listener
                 player.teleport(returnLocation);
             }
         }
+        
+        //if we're holding a logout message for this player, don't send that or this event's join message
+        if(GriefPrevention.instance.config_spam_logoutMessageDelaySeconds > 0)
+        {
+            String joinMessage = event.getJoinMessage();
+            if(joinMessage != null && !joinMessage.isEmpty())
+            {
+                Integer taskID = this.heldLogoutMessages.get(player.getUniqueId());
+                if(taskID != null && Bukkit.getScheduler().isQueued(taskID))
+                {
+                    Bukkit.getScheduler().cancelTask(taskID);
+                    player.sendMessage(event.getJoinMessage());
+                    event.setJoinMessage("");
+                }
+            }
+        }
 	}
 	
 	//when a player spawns, conditionally apply temporary pvp protection 
@@ -972,20 +992,24 @@ class PlayerEventHandler implements Listener
     }
 	
 	//when a player dies...
-	@EventHandler(priority = EventPriority.HIGHEST)
+	private HashMap<UUID, Long> deathTimestamps = new HashMap<UUID, Long>();
+    @EventHandler(priority = EventPriority.HIGHEST)
 	void onPlayerDeath(PlayerDeathEvent event)
 	{
 		//FEATURE: prevent death message spam by implementing a "cooldown period" for death messages
-		PlayerData playerData = this.dataStore.getPlayerData(event.getEntity().getUniqueId());
+		Player player = event.getEntity();
+        Long lastDeathTime = this.deathTimestamps.get(player.getUniqueId());
 		long now = Calendar.getInstance().getTimeInMillis(); 
-		if(now - playerData.lastDeathTimeStamp < GriefPrevention.instance.config_spam_deathMessageCooldownSeconds * 1000)
+		if(lastDeathTime != null && now - lastDeathTime < GriefPrevention.instance.config_spam_deathMessageCooldownSeconds * 1000)
 		{
-			event.setDeathMessage("");
+			player.sendMessage(event.getDeathMessage());  //let the player assume his death message was broadcasted to everyone
+		    event.setDeathMessage("");
 		}
 		
-		playerData.lastDeathTimeStamp = now;
+		this.deathTimestamps.put(player.getUniqueId(), now);
 		
 		//these are related to locking dropped items on death to prevent theft
+		PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
 		playerData.dropsAreUnlocked = false;
 		playerData.receivedDropUnlockAdvertisement = false;
 	}
@@ -1000,6 +1024,7 @@ class PlayerEventHandler implements Listener
     }
 	
 	//when a player quits...
+	private HashMap<UUID, Integer> heldLogoutMessages = new HashMap<UUID, Integer>();
 	@EventHandler(priority = EventPriority.HIGHEST)
 	void onPlayerQuit(PlayerQuitEvent event)
 	{
@@ -1070,6 +1095,19 @@ class PlayerEventHandler implements Listener
         
         //drop data about this player
         this.dataStore.clearCachedPlayerData(playerID);
+        
+        //send quit message later, but only if the player stays offline
+        if(GriefPrevention.instance.config_spam_logoutMessageDelaySeconds > 0)
+        {
+            String quitMessage = event.getQuitMessage();
+            if(quitMessage != null && !quitMessage.isEmpty())
+            {
+                BroadcastMessageTask task = new BroadcastMessageTask(quitMessage);
+                int taskID = Bukkit.getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 20L * GriefPrevention.instance.config_spam_logoutMessageDelaySeconds);
+                this.heldLogoutMessages.put(playerID, taskID);
+                event.setQuitMessage("");
+            }
+        }
 	}
 	
 	//determines whether or not a login or logout notification should be silenced, depending on how many there have been in the last minute
@@ -1149,7 +1187,7 @@ class PlayerEventHandler implements Listener
         {
             //FEATURE: when players get trapped in a nether portal, send them back through to the other side
             CheckForPortalTrapTask task = new CheckForPortalTrapTask(player, event.getFrom());
-            GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1200L);  //after 1 minute
+            GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 600L);  //after 30 seconds
             portalReturnMap.put(player.getUniqueId(), event.getFrom());
         
             //FEATURE: if the player teleporting doesn't have permission to build a nether portal and none already exists at the destination, cancel the teleportation
@@ -1161,6 +1199,7 @@ class PlayerEventHandler implements Listener
                     if(event.getPortalTravelAgent().getCanCreatePortal())
                     {
                         //hypothetically find where the portal would be created if it were
+                        //this is VERY expensive for the cpu, so this feature is off by default
                         TravelAgent agent = event.getPortalTravelAgent();
                         agent.setCanCreatePortal(false);
                         destination = agent.findOrCreate(destination);
@@ -1445,6 +1484,33 @@ class PlayerEventHandler implements Listener
 		}
 	}
 	
+	//when a player reels in his fishing rod
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+	public void onPlayerFish(PlayerFishEvent event)
+	{
+	    Entity entity = event.getCaught();
+	    if(entity == null) return;  //if nothing pulled, uninteresting event
+	    
+	    //if should be protected from pulling in land claims without permission
+	    if(entity.getType() == EntityType.ARMOR_STAND || entity instanceof Animals)
+	    {
+	        Player player = event.getPlayer();
+	        PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
+	        Claim claim = GriefPrevention.instance.dataStore.getClaimAt(entity.getLocation(), false, playerData.lastClaim);
+	        if(claim != null)
+	        {
+	            //if no permission, cancel
+	            String errorMessage = claim.allowContainers(player);
+	            if(errorMessage != null)
+	            {
+	                event.setCancelled(true);
+	                GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoDamageClaimedEntity, claim.getOwnerName());
+	                return;
+	            }
+	        }
+	    }
+	}
+	
 	//when a player picks up an item...
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onPlayerPickupItem(PlayerPickupItemEvent event)
@@ -1674,33 +1740,33 @@ class PlayerEventHandler implements Listener
         PlayerData playerData = null;
         if(action == Action.LEFT_CLICK_BLOCK && clickedBlock != null)
         {
-            //exception for blocks on a specific watch list
-            if(!this.onLeftClickWatchList(clickedBlockType) && !GriefPrevention.instance.config_mods_accessTrustIds.Contains(new MaterialInfo(clickedBlock.getTypeId(), clickedBlock.getData(), null)))
+            if(clickedBlock.getY() < clickedBlock.getWorld().getMaxHeight() - 1 || event.getBlockFace() != BlockFace.UP)
             {
-                //and an exception for putting our fires
-                if(GriefPrevention.instance.config_claims_protectFires && event.getClickedBlock() != null)
+                Block adjacentBlock = clickedBlock.getRelative(event.getBlockFace());
+                byte lightLevel = adjacentBlock.getLightFromBlocks();
+                if(lightLevel == 15 && adjacentBlock.getType() == Material.FIRE)
                 {
-                    Block adjacentBlock = event.getClickedBlock().getRelative(event.getBlockFace());
-                    if(adjacentBlock.getType() == Material.FIRE)
+                    if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
+                    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
+                    if(claim != null)
                     {
-                        if(playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
-                        Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
-                        if(claim != null)
+                        playerData.lastClaim = claim;
+                        
+                        String noBuildReason = claim.allowBuild(player, Material.AIR);
+                        if(noBuildReason != null)
                         {
-                            playerData.lastClaim = claim;
-                            
-                            String noBuildReason = claim.allowBuild(player, Material.AIR);
-                            if(noBuildReason != null)
-                            {
-                                event.setCancelled(true);
-                                GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
-                                player.sendBlockChange(adjacentBlock.getLocation(), adjacentBlock.getTypeId(), adjacentBlock.getData());
-                                return;
-                            }
+                            event.setCancelled(true);
+                            GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
+                            player.sendBlockChange(adjacentBlock.getLocation(), adjacentBlock.getTypeId(), adjacentBlock.getData());
+                            return;
                         }
                     }
                 }
-                
+            }
+            
+            //exception for blocks on a specific watch list
+            if(!this.onLeftClickWatchList(clickedBlockType) && !GriefPrevention.instance.config_mods_accessTrustIds.Contains(new MaterialInfo(clickedBlock.getTypeId(), clickedBlock.getData(), null)))
+            {
                 return;
             }
         }

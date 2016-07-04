@@ -244,6 +244,7 @@ public enum Messages
     TooManyActiveBlocksInClaim,
 	ConsoleOnlyCommand,
 	WorldNotFound, 
+	AdjustBlocksAllSuccess,
     TurningOnPVP, 
     PvpAllowed, 
     TurningOffPVP, 

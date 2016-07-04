@@ -217,7 +217,7 @@ public abstract class DataStore
         }        
     }
 	
-	List<String> loadBannedWords()
+	public List<String> loadBannedWords()
     {
         try
         {
@@ -634,7 +634,6 @@ public abstract class DataStore
                         Tameable pet = (Tameable)entity;
                         if(pet.isTamed())
                         {
-                        		               
                             AnimalTamer owner = pet.getOwner();
                             if(owner != null)
                             {
@@ -653,7 +652,7 @@ public abstract class DataStore
                                     }
                                 }
                             }
-                        }		                          
+                        }
                     }
                 }
             }
@@ -1052,9 +1051,7 @@ public abstract class DataStore
 			Player loser = GriefPrevention.instance.getServer().getPlayer(loserName);
 			if(winner != null && loser != null)
 			{
-				//get loser's inventory, then clear it
-				
-				//try to add it to the winner's inventory
+				//try to add any drops to the winner's inventory
 				for(ItemStack stack : drops)
 				{
 					if(stack == null || stack.getType() == Material.AIR || stack.getAmount() == 0) continue;
@@ -1429,6 +1426,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.NoDeletePermission, "You don't have permission to delete claims.", null);
 		this.addDefault(defaults, Messages.AllAdminDeleted, "Deleted all administrative claims.", null);
 		this.addDefault(defaults, Messages.AdjustBlocksSuccess, "Adjusted {0}'s bonus claim blocks by {1}.  New total bonus blocks: {2}.", "0: player; 1: adjustment; 2: new total");
+		this.addDefault(defaults, Messages.AdjustBlocksAllSuccess, "Adjusted all online players' bonus claim blocks by {0}.", "0: adjustment amount");
 		this.addDefault(defaults, Messages.NotTrappedHere, "You can build here.  Save yourself.", null);
 		this.addDefault(defaults, Messages.RescuePending, "If you stay put for 10 seconds, you'll be teleported out.  Please wait.", null);
 		this.addDefault(defaults, Messages.NonSiegeWorld, "Siege is disabled here.", null);
@@ -1536,7 +1534,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.NoBuildOutsideClaims, "You can't build here unless you claim some land first.", null);
 		this.addDefault(defaults, Messages.PlayerOfflineTime, "  Last login: {0} days ago.", "0: number of full days since last login");
 		this.addDefault(defaults, Messages.BuildingOutsideClaims, "Other players can build here, too.  Consider creating a land claim to protect your work!", null);
-		this.addDefault(defaults, Messages.TrappedWontWorkHere, "Sorry, unable to find a safe location to teleport you to.  Contact an admin, or consider /kill if you don't want to wait.", null);
+		this.addDefault(defaults, Messages.TrappedWontWorkHere, "Sorry, unable to find a safe location to teleport you to.  Contact an admin.", null);
 		this.addDefault(defaults, Messages.CommandBannedInPvP, "You can't use that command while in PvP combat.", null);
 		this.addDefault(defaults, Messages.UnclaimCleanupWarning, "The land you've unclaimed may be changed by other players or cleaned up by administrators.  If you've built something there you want to keep, you should reclaim it.", null);
 		this.addDefault(defaults, Messages.BuySellNotConfigured, "Sorry, buying and selling claim blocks is disabled.", null);

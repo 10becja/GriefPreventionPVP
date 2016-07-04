@@ -4,7 +4,7 @@ main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands, MultiWorld, Denizen]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 14.5.4
+version: 14.9
 commands:
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
@@ -72,6 +72,11 @@ commands:
       usage: /AdjustBonusClaimBlocks <player> <amount>
       permission: griefprevention.adjustclaimblocks
       aliases: acb
+   adjustbonusclaimblocksall:
+      description: Adds or subtracts bonus claim blocks for all online players.
+      usage: /AdjustBonusClaimBlocksAll <player> <amount>
+      permission: griefprevention.adjustclaimblocks
+      aliases: acball
    adjustaccruedclaimblocks:
       description: Adds or subtracts accrued claim blocks.
       usage: /AdjustAccruedClaimBlocks <player> <amount>
@@ -363,3 +368,15 @@ permissions:
     griefprevention.eavesdropimmune:
         description: Players with this permission can't have their private messages eavesdropped.
         default: op
+    griefprevention.fasteraccrual:
+        description: Players with this permission accrue claim blocks at the faster rate specified in the config file.
+        default: false
+    griefprevention.fastestaccrual:
+        description: Players with this permission accrue claim blocks at the fastest rate specified in the config file.
+        default: false
+    griefprevention.moreaccrued:
+        description: Players with this permission can accrue more claim blocks (limit specified in the config file).
+        default: false
+    griefprevention.mostaccrued:
+        description: Players with this permission can accrue more claim blocks (limit specified in the config file).
+        default: false

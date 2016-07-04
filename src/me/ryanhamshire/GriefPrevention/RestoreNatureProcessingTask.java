@@ -608,6 +608,7 @@ class RestoreNatureProcessingTask implements Runnable
 			if(block.typeId != Material.AIR.getId() &&
 			!(ignoreLeaves && block.typeId == Material.SNOW.getId()) &&
 			!(ignoreLeaves && block.typeId == Material.LEAVES.getId()) &&
+			!(ignoreLeaves && block.typeId == Material.LEAVES_2.getId()) &&
 			!(block.typeId == Material.STATIONARY_WATER.getId()) &&
 			!(block.typeId == Material.WATER.getId()) &&
 			!(block.typeId == Material.LAVA.getId()) &&
@@ -769,6 +770,10 @@ class RestoreNatureProcessingTask implements Runnable
         playerBlocks.add(Material.PURPUR_DOUBLE_SLAB.getId());
         playerBlocks.add(Material.PURPUR_PILLAR.getId());
         playerBlocks.add(Material.PURPUR_STAIRS.getId());
+        playerBlocks.add(Material.NETHER_WART_BLOCK.getId());
+        playerBlocks.add(Material.RED_NETHER_BRICK.getId());
+        playerBlocks.add(Material.BONE_BLOCK.getId());
+        
 		//these are unnatural in the standard world, but not in the nether
 		if(environment != Environment.NETHER)
 		{
@@ -778,6 +783,7 @@ class RestoreNatureProcessingTask implements Runnable
 			playerBlocks.add(Material.NETHER_BRICK.getId());
 			playerBlocks.add(Material.NETHER_FENCE.getId());
 			playerBlocks.add(Material.NETHER_BRICK_STAIRS.getId());
+			playerBlocks.add(Material.MAGMA.getId());
 		}
 		
 		//these are unnatural in the standard and nether worlds, but not in the end
