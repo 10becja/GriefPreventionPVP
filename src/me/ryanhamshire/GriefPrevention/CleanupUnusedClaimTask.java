@@ -43,7 +43,7 @@ class CleanupUnusedClaimTask implements Runnable
 	@Override
 	public void run()
 	{
-		//see if any other plugins don't want this claim deleted
+	    //see if any other plugins don't want this claim deleted
 	    ClaimExpirationEvent event = new ClaimExpirationEvent(this.claim);
 	    Bukkit.getPluginManager().callEvent(event);
 	    if(event.isCancelled()) return;

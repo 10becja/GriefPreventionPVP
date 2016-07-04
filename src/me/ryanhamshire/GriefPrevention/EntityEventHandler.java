@@ -840,7 +840,7 @@ public class EntityEventHandler implements Listener
     			}
 			}
 		}
-		
+
         //FEATURE: protect claimed animals, boats, minecarts, and items inside item frames
         //NOTE: animals can be lead with wheat, vehicles can be pushed around.
         //so unless precautions are taken by the owner, a resourceful thief might find ways to steal anyway

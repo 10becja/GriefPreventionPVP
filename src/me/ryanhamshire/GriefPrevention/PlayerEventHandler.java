@@ -31,8 +31,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
-
-
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -46,7 +44,6 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Animals;
-import org.bukkit.entity.Boat;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -945,6 +942,8 @@ class PlayerEventHandler implements Listener
         
         //create a thread to load ignore information
         new IgnoreLoaderThread(playerID, playerData.ignoredPlayers).start();
+        
+        //is he possibly stuck in a portal frame?
         Location returnLocation = PlayerEventHandler.portalReturnMap.get(player.getUniqueId());
         if(returnLocation != null)
         {
@@ -1170,7 +1169,9 @@ class PlayerEventHandler implements Listener
 		}
 	}
 	
+	//remember where players teleport from (via portals) in case they're trapped at the destination
 	static ConcurrentHashMap<UUID, Location> portalReturnMap = new ConcurrentHashMap<UUID, Location>();
+	
 	//when a player teleports via a portal
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
 	void onPlayerPortal(PlayerPortalEvent event) 
@@ -1323,40 +1324,41 @@ class PlayerEventHandler implements Listener
             if(tameable.isTamed())
             {
                 if(tameable.getOwner() != null)
-            {
-               UUID ownerID = tameable.getOwner().getUniqueId();
-               
-               //if the player interacting is the owner or an admin in ignore claims mode, always allow
-               if(player.getUniqueId().equals(ownerID) || playerData.ignoreClaims)
-               {
-                   //if giving away pet, do that instead
-                   if(playerData.petGiveawayRecipient != null)
-                   {
-                       tameable.setOwner(playerData.petGiveawayRecipient);
-                       playerData.petGiveawayRecipient = null;
-                       GriefPrevention.sendMessage(player, TextMode.Success, Messages.PetGiveawayConfirmation);
-                       event.setCancelled(true);
-                   }
+                {
+                   UUID ownerID = tameable.getOwner().getUniqueId();
                    
-                   return;
-               }
-               if(!GriefPrevention.instance.pvpRulesApply(entity.getLocation().getWorld()) || GriefPrevention.instance.config_pvp_protectPets)
-               {
-                   //otherwise disallow
-                   OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID); 
-                   String ownerName = owner.getName();
-                   if(ownerName == null) ownerName = "someone";
-                   String message = GriefPrevention.instance.dataStore.getMessage(Messages.NotYourPet, ownerName);
-                   if(player.hasPermission("griefprevention.ignoreclaims"))
-                       message += "  " + GriefPrevention.instance.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
-                   GriefPrevention.sendMessage(player, TextMode.Err, message);
-                   event.setCancelled(true);
-                   return;
+                   //if the player interacting is the owner or an admin in ignore claims mode, always allow
+                   if(player.getUniqueId().equals(ownerID) || playerData.ignoreClaims)
+                   {
+                       //if giving away pet, do that instead
+                       if(playerData.petGiveawayRecipient != null)
+                       {
+                           tameable.setOwner(playerData.petGiveawayRecipient);
+                           playerData.petGiveawayRecipient = null;
+                           GriefPrevention.sendMessage(player, TextMode.Success, Messages.PetGiveawayConfirmation);
+                           event.setCancelled(true);
+                       }
+                       
+                       return;
+                   }
+                   if(!GriefPrevention.instance.pvpRulesApply(entity.getLocation().getWorld()) || GriefPrevention.instance.config_pvp_protectPets)
+                   {
+                       //otherwise disallow
+                       OfflinePlayer owner = GriefPrevention.instance.getServer().getOfflinePlayer(ownerID); 
+                       String ownerName = owner.getName();
+                       if(ownerName == null) ownerName = "someone";
+                       String message = GriefPrevention.instance.dataStore.getMessage(Messages.NotYourPet, ownerName);
+                       if(player.hasPermission("griefprevention.ignoreclaims"))
+                           message += "  " + GriefPrevention.instance.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
+                       GriefPrevention.sendMessage(player, TextMode.Err, message);
+                       event.setCancelled(true);
+                       return;
                    }
                 }
             }
             else  //world repair code for a now-fixed GP bug
             {
+                //ensure this entity can be tamed by players
                 tameable.setOwner(null);
                 if(tameable instanceof InventoryHolder)
                 {
@@ -1433,7 +1435,7 @@ class PlayerEventHandler implements Listener
 						return;
 					}
 				}
-				
+
 				//for boats, apply access rules
 				else if(entity instanceof Boat)
 				{
@@ -1967,10 +1969,10 @@ class PlayerEventHandler implements Listener
 			    Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
 				if(claim != null)
 				{
-					String noAccessReason = claim.allowAccess(player);
-					if(noAccessReason != null)
+					String noBuildReason = claim.allowBuild(player, Material.BOAT);
+					if(noBuildReason != null)
 					{
-						GriefPrevention.sendMessage(player, TextMode.Err, noAccessReason);
+						GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
 						event.setCancelled(true);
 					}
 				}

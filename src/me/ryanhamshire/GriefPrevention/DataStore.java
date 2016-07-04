@@ -1784,6 +1784,8 @@ public abstract class DataStore
         
         return claims;
     }
+    
+	//deletes all the land claims in a specified world
 	void deleteClaimsInWorld(World world, boolean deleteAdminClaims)
 	{
 	    for(int i = 0; i < claims.size(); i++)

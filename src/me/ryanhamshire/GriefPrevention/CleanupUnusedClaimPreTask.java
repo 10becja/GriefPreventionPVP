@@ -39,6 +39,9 @@ class CleanupUnusedClaimPreTask implements Runnable
 		//get the data
 	    PlayerData ownerData = GriefPrevention.instance.dataStore.getPlayerDataFromStorage(claim.ownerID);
 	    OfflinePlayer ownerInfo = Bukkit.getServer().getOfflinePlayer(claim.ownerID);
+	    
+	    //expiration code uses last logout timestamp to decide whether to expire claims
+	    //don't expire claims for online players
 	    if(ownerInfo.isOnline()) return;
 	    
 	    GriefPrevention.AddLogEntry("Looking for expired claims.  Checking data for " + claim.ownerID.toString(), CustomLogEntryTypes.Debug, true);

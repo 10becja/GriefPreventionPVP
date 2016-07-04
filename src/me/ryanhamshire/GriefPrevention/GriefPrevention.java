@@ -2040,6 +2040,7 @@ public class GriefPrevention extends JavaPlugin
             GriefPrevention.AddLogEntry("Deleted all claims in world: " + world.getName() + ".", CustomLogEntryTypes.AdminActivity);
             return true;
         }
+
 		else if(cmd.getName().equalsIgnoreCase("deleteclaimsinworld"))
         {
             //must be executed at the console
@@ -2065,6 +2066,7 @@ public class GriefPrevention extends JavaPlugin
             GriefPrevention.AddLogEntry("Deleted all user claims in world: " + world.getName() + ".", CustomLogEntryTypes.AdminActivity);
             return true;
         }
+
 		//claimbook
         else if(cmd.getName().equalsIgnoreCase("claimbook"))
         {
@@ -2348,7 +2350,7 @@ public class GriefPrevention extends JavaPlugin
 			
 			return true;			
 		}
-		
+
 		//setaccruedclaimblocks <player> <amount>
         else if(cmd.getName().equalsIgnoreCase("setaccruedclaimblocks"))
         {
@@ -3355,7 +3357,9 @@ public class GriefPrevention extends JavaPlugin
     //determines whether creative anti-grief rules apply at a location
 	boolean creativeRulesApply(Location location)
 	{
-		return this.config_claims_worldModes.get((location.getWorld())) == ClaimsMode.Creative;
+		if(!this.config_creativeWorldsExist) return false;
+
+	    return this.config_claims_worldModes.get((location.getWorld())) == ClaimsMode.Creative;
 	}
 	
 	public String allowBuild(Player player, Location location)
@@ -3412,6 +3416,7 @@ public class GriefPrevention extends JavaPlugin
 	public String allowBreak(Player player, Block block, Location location)
 	{
 		if(!GriefPrevention.instance.claimsEnabledForWorld(location.getWorld())) return null;
+
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
 		Claim claim = this.dataStore.getClaimAt(location, false, playerData.lastClaim);
 		
@@ -3907,6 +3912,7 @@ public class GriefPrevention extends JavaPlugin
         if(hand == EquipmentSlot.OFF_HAND) return player.getInventory().getItemInOffHand();
         return player.getInventory().getItemInMainHand();
     }
+
     public boolean claimIsPvPSafeZone(Claim claim)
     {
         return claim.isAdminClaim() && claim.parent == null && GriefPrevention.instance.config_pvp_noCombatInAdminLandClaims ||

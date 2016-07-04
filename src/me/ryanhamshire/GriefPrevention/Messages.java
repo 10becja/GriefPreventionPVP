@@ -259,5 +259,5 @@ public enum Messages
     NoLongerCombatTagged, 
     NoPlayerFound, 
     AlreadyToggled, 
-    ExceedsMaxBlockCount	
+    ExceedsMaxBlockCount
 }

@@ -36,7 +36,7 @@ class CheckForPortalTrapTask implements Runnable
 	public CheckForPortalTrapTask(Player player, Location location)
 	{
 		this.player = player;
-		this.returnLocation = location;		
+		this.returnLocation = location;
 	}
 	
 	@Override
@@ -45,7 +45,7 @@ class CheckForPortalTrapTask implements Runnable
 	    //if player has logged out, do nothing
 	    if(!player.isOnline()) return;
 	    
-	    //otherwise if still standing in a portal frame, teleport him back through
+	    //if still standing in a portal frame, teleport him back through
 	    if(this.player.getLocation().getBlock().getType() == Material.PORTAL)
 	    {
 	        this.player.teleport(this.returnLocation);
