@@ -42,6 +42,7 @@ import org.bukkit.TravelAgent;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Boat;
@@ -522,7 +523,6 @@ class PlayerEventHandler implements Listener
 		if(category == CommandCategory.Whisper && args.length > 1)
 		{
 		    //determine target player, might be NULL
-            @SuppressWarnings("deprecation")
             Player targetPlayer = GriefPrevention.instance.getServer().getPlayer(args[1]);
 		    
             //softmute feature
@@ -584,7 +584,7 @@ class PlayerEventHandler implements Listener
 		
 		//if in pvp, block any pvp-banned slash commands
 		if(playerData == null) playerData = this.dataStore.getPlayerData(event.getPlayer().getUniqueId());
-
+		
 		if((playerData.inPvpCombat() || playerData.siegeData != null) && GriefPrevention.instance.config_pvp_blockedCommands.contains(command))
 		{
 			event.setCancelled(true);
@@ -741,7 +741,11 @@ class PlayerEventHandler implements Listener
     void onInventoryOpen (InventoryOpenEvent event){
     	if(event.isCancelled()) return;
     	Inventory inv = event.getInventory();
-    	Location loc = (inv == null) ? null: inv.getLocation();
+    	Location loc = null;
+    	if(inv != null){
+    		if(inv.getHolder() instanceof BlockState)
+    			loc = inv.getLocation();
+    	}
     	if(loc == null) return;
     	Claim claim = this.dataStore.getClaimAt(loc, false, null);
     	if(claim == null) return;
@@ -979,7 +983,6 @@ class PlayerEventHandler implements Listener
         Player player = event.getPlayer();
         PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
         playerData.lastSpawn = Calendar.getInstance().getTimeInMillis();
-        playerData.lastPvpTimestamp = 0;  //no longer in pvp combat
         
         //also send him any messaged from grief prevention he would have received while dead
         if(playerData.messageOnRespawn != null)
@@ -1012,6 +1015,7 @@ class PlayerEventHandler implements Listener
 		PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
 		playerData.dropsAreUnlocked = false;
 		playerData.receivedDropUnlockAdvertisement = false;
+        playerData.lastPvpTimestamp = 0;  //no longer in pvp combat
 	}
 	
 	//when a player gets kicked...
@@ -1231,7 +1235,7 @@ class PlayerEventHandler implements Listener
 	}
 	
 	//when a player teleports
-	@EventHandler(priority = EventPriority.LOWEST)
+	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onPlayerTeleport(PlayerTeleportEvent event)
 	{
 	    Player player = event.getPlayer();
@@ -1253,6 +1257,15 @@ class PlayerEventHandler implements Listener
 					if(cause == TeleportCause.ENDER_PEARL)
 						player.getInventory().addItem(new ItemStack(Material.ENDER_PEARL));
 				}
+			}
+		}
+		//prevent players from teleporting while combat tagged
+		if(cause == TeleportCause.COMMAND || cause == TeleportCause.PLUGIN){
+			if(playerData.inPvpCombat())
+			{
+				event.setCancelled(true);
+				GriefPrevention.sendMessage(player, TextMode.Err, "You are not allowed to teleport while in combat!");
+				return;
 			}
 		}
 		
