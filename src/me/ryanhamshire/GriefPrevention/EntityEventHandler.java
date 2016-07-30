@@ -117,9 +117,23 @@ public class EntityEventHandler implements Listener
 	}
 	
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-	public void onEntityChangeBLock(EntityChangeBlockEvent event)
+	public void onEntityChangeBlock(EntityChangeBlockEvent event)
 	{
-		if(!GriefPrevention.instance.config_endermenMoveBlocks && event.getEntityType() == EntityType.ENDERMAN)
+		if(event.getEntity() instanceof Arrow){
+        	Arrow arrow = (Arrow) event.getEntity();
+        	if(arrow.getShooter() instanceof Player){
+        		Player player = (Player) arrow.getShooter();
+        		Block b = event.getBlock();
+        		
+                if(GriefPrevention.instance.allowBreak(player, b, b.getLocation()) != null)
+                {
+                    event.setCancelled(true);
+                }
+        	}
+        }
+		
+		
+		else if(!GriefPrevention.instance.config_endermenMoveBlocks && event.getEntityType() == EntityType.ENDERMAN)
 		{
 			event.setCancelled(true);
 		}
