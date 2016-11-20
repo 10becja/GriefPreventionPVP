@@ -89,7 +89,7 @@ public class BlockEventHandler implements Listener
 		Block block = breakEvent.getBlock();
 		
 		//make sure the player is allowed to break at the location
-		String noBuildReason = GriefPrevention.instance.allowBreak(player, block, block.getLocation());
+		String noBuildReason = GriefPrevention.instance.allowBreak(player, block, block.getLocation(), breakEvent);
 		if(noBuildReason != null)
 		{
 			GriefPrevention.sendMessage(player, TextMode.Err, noBuildReason);
@@ -131,11 +131,11 @@ public class BlockEventHandler implements Listener
 		
 		//if not empty and wasn't the same as the last sign, log it and remember it for later
 		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
-		if(notEmpty && playerData.lastMessage != null && !playerData.lastMessage.equals(signMessage))
+		if(notEmpty && (playerData.lastSignMessage == null || !playerData.lastSignMessage.equals(signMessage)))
 		{		
 			GriefPrevention.AddLogEntry(player.getName() + lines.toString().replace("\n  ", ";"), null);
 			PlayerEventHandler.makeSocialLogEntry(player.getName(), signMessage);
-			playerData.lastMessage = signMessage;
+			playerData.lastSignMessage = signMessage;
 			
 			if(!player.hasPermission("griefprevention.eavesdropsigns"))
 			{

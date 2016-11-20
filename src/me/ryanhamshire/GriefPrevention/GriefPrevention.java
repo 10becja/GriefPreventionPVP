@@ -36,12 +36,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import me.ryanhamshire.GriefPrevention.DataStore.NoTransferException;
+import me.ryanhamshire.GriefPrevention.events.PreventBlockBreakEvent;
 import me.ryanhamshire.GriefPrevention.events.SaveTrappedPlayerEvent;
 import net.milkbowl.vault.economy.Economy;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Achievement;
 import org.bukkit.BanList;
+import org.bukkit.BanList.Type;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -51,14 +52,16 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
-import org.bukkit.BanList.Type;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.command.*;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -579,7 +582,7 @@ public class GriefPrevention extends JavaPlugin
         String slashCommandsToMonitor = config.getString("GriefPrevention.Spam.MonitorSlashCommands", "/me;/global;/local");
         slashCommandsToMonitor = config.getString("GriefPrevention.Spam.ChatSlashCommands", slashCommandsToMonitor);
         this.config_spam_deathMessageCooldownSeconds = config.getInt("GriefPrevention.Spam.DeathMessageCooldownSeconds", 120);
-        this.config_spam_logoutMessageDelaySeconds = config.getInt("GriefPrevention.Spam.Logout Message Delay In Seconds", 10);
+        this.config_spam_logoutMessageDelaySeconds = config.getInt("GriefPrevention.Spam.Logout Message Delay In Seconds", 0);
         
         this.config_pvp_protectFreshSpawns = config.getBoolean("GriefPrevention.PvP.ProtectFreshSpawns", true);
         this.config_pvp_punishLogout = config.getBoolean("GriefPrevention.PvP.PunishLogout", true);
@@ -1734,7 +1737,7 @@ public class GriefPrevention extends JavaPlugin
 			//if no parameter, just tell player cost per block and balance
 			if(args.length != 1)
 			{
-				GriefPrevention.sendMessage(player, TextMode.Info, Messages.BlockPurchaseCost, String.valueOf(GriefPrevention.instance.config_economy_claimBlocksPurchaseCost), String.valueOf(GriefPrevention.economy.getBalance(player)));
+				GriefPrevention.sendMessage(player, TextMode.Info, Messages.BlockPurchaseCost, String.valueOf(GriefPrevention.instance.config_economy_claimBlocksPurchaseCost), String.valueOf(GriefPrevention.economy.getBalance(player.getName())));
 				return false;
 			}
 			
@@ -1768,7 +1771,7 @@ public class GriefPrevention extends JavaPlugin
 				}
 				
 				//if the player can't afford his purchase, send error message
-				double balance = economy.getBalance(player);				
+				double balance = economy.getBalance(player.getName());				
 				double totalCost = blockCount * GriefPrevention.instance.config_economy_claimBlocksPurchaseCost;				
 				if(totalCost > balance)
 				{
@@ -1779,7 +1782,7 @@ public class GriefPrevention extends JavaPlugin
 				else
 				{
 					//withdraw cost
-					economy.withdrawPlayer(player, totalCost);
+					economy.withdrawPlayer(player.getName(), totalCost);
 					
 					//add blocks
 					playerData.setBonusClaimBlocks(playerData.getBonusClaimBlocks() + blockCount);
@@ -1855,7 +1858,7 @@ public class GriefPrevention extends JavaPlugin
 			{					
 				//compute value and deposit it
 				double totalValue = blockCount * GriefPrevention.instance.config_economy_claimBlocksSellValue;					
-				economy.depositPlayer(player, totalValue);
+				economy.depositPlayer(player.getName(), totalValue);
 				
 				//subtract blocks
 				playerData.setBonusClaimBlocks(playerData.getBonusClaimBlocks() - blockCount);
@@ -2494,13 +2497,13 @@ public class GriefPrevention extends JavaPlugin
 			{
 				return false;
 			}
-			
-			//don't siege yourself dummy
-			if(attacker == defender)
-			{
-				GriefPrevention.sendMessage(player, TextMode.Err, "Placing yourself in siege is rather pointless");
-				return true;
-			}
+
+            // First off, you cannot siege yourself, that's just
+            // silly:
+            if (attacker.getName().equals( defender.getName() )) {
+                GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoSiegeYourself);
+                return true;
+            }
 			
 			//victim must not have the permission which makes him immune to siege
 			if(defender.hasPermission("griefprevention.siegeimmune"))
@@ -3119,7 +3122,6 @@ public class GriefPrevention extends JavaPlugin
         }
     }
 	
-	@SuppressWarnings("deprecation")
 	public OfflinePlayer resolvePlayerByName(String name) 
 	{
 		//try online players first
@@ -3269,7 +3271,7 @@ public class GriefPrevention extends JavaPlugin
 	}
 
 	//moves a player from the claim he's in to a nearby wilderness location
-	public static Location ejectPlayer(Player player)
+	public Location ejectPlayer(Player player)
 	{
 		//look for a suitable location
 		Location candidateLocation = player.getLocation();
@@ -3415,45 +3417,58 @@ public class GriefPrevention extends JavaPlugin
 	
 	public String allowBreak(Player player, Block block, Location location)
 	{
-		if(!GriefPrevention.instance.claimsEnabledForWorld(location.getWorld())) return null;
-
-		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
-		Claim claim = this.dataStore.getClaimAt(location, false, playerData.lastClaim);
-		
-		//exception: administrators in ignore claims mode, and special player accounts created by server mods
-		if(playerData.ignoreClaims || GriefPrevention.instance.config_mods_ignoreClaimsAccounts.contains(player.getName())) return null;
-		
-		//wilderness rules
-		if(claim == null)
-		{
-			//no building in the wilderness in creative mode
-			if(this.creativeRulesApply(location) || this.config_claims_worldModes.get(location.getWorld()) == ClaimsMode.SurvivalRequiringClaims)
-			{
-				String reason = this.dataStore.getMessage(Messages.NoBuildOutsideClaims);
-				if(player.hasPermission("griefprevention.ignoreclaims"))
-					reason += "  " + this.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
-				reason += "  " + this.dataStore.getMessage(Messages.CreativeBasicsVideo2, DataStore.CREATIVE_VIDEO_URL);
-				return reason;
-			}
-			
-			//but it's fine in survival mode
-			else
-			{
-				return null;
-			}
-		}
-		else
-		{
-			//cache the claim for later reference
-			playerData.lastClaim = claim;
-			
-			//if claim is protected, prevent anyone other than those in ignoreclaims from breaking it
-			if(claim.isProtected && claim.siegeData == null) return this.dataStore.getMessage(Messages.ProtectedClaim);
-		
-			//if not in the wilderness, then apply claim rules (permissions, etc)
-			return claim.allowBreak(player, block.getType());
-		}
+		return this.allowBreak(player, block, location, null);
 	}
+	
+	public String allowBreak(Player player, Block block, Location location, BlockBreakEvent breakEvent)
+    {
+        if(!GriefPrevention.instance.claimsEnabledForWorld(location.getWorld())) return null;
+        
+        PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
+        Claim claim = this.dataStore.getClaimAt(location, false, playerData.lastClaim);
+        
+        //exception: administrators in ignore claims mode, and special player accounts created by server mods
+        if(playerData.ignoreClaims || GriefPrevention.instance.config_mods_ignoreClaimsAccounts.contains(player.getName())) return null;
+        
+        //wilderness rules
+        if(claim == null)
+        {
+            //no building in the wilderness in creative mode
+            if(this.creativeRulesApply(location) || this.config_claims_worldModes.get(location.getWorld()) == ClaimsMode.SurvivalRequiringClaims)
+            {
+                String reason = this.dataStore.getMessage(Messages.NoBuildOutsideClaims);
+                if(player.hasPermission("griefprevention.ignoreclaims"))
+                    reason += "  " + this.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
+                reason += "  " + this.dataStore.getMessage(Messages.CreativeBasicsVideo2, DataStore.CREATIVE_VIDEO_URL);
+                return reason;
+            }
+            
+            //but it's fine in survival mode
+            else
+            {
+                return null;
+            }
+        }
+        else
+        {
+            //cache the claim for later reference
+            playerData.lastClaim = claim;
+        
+            //if not in the wilderness, then apply claim rules (permissions, etc)
+            String cancel = claim.allowBreak(player, block.getType());
+            if(cancel != null && breakEvent != null)
+            {
+                PreventBlockBreakEvent preventionEvent = new PreventBlockBreakEvent(breakEvent);
+                Bukkit.getPluginManager().callEvent(preventionEvent);
+                if(preventionEvent.isCancelled())
+                {
+                    cancel = null;
+                }
+            }
+            
+            return cancel;
+        }
+    }
 
 	//restores nature in multiple chunks, as described by a claim instance
 	//this restores all chunks which have ANY number of claim blocks from this claim in them

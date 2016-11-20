@@ -42,7 +42,6 @@ import org.bukkit.TravelAgent;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.BlockState;
 import org.bukkit.command.Command;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Boat;
@@ -62,12 +61,29 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.bukkit.event.player.*;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerBucketEmptyEvent;
+import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.player.PlayerFishEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerPickupItemEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.MetadataValue;
@@ -94,6 +110,9 @@ class PlayerEventHandler implements Listener
 	//matcher for banned words
 	private WordFinder bannedWordFinder = new WordFinder(GriefPrevention.instance.dataStore.loadBannedWords());
 	
+	//spam tracker
+	SpamDetector spamDetector = new SpamDetector();
+	
 	//typical constructor, yawn
 	PlayerEventHandler(DataStore dataStore, GriefPrevention plugin)
 	{
@@ -119,7 +138,7 @@ class PlayerEventHandler implements Listener
 		{
 			GriefPrevention.sendMessage(p, TextMode.Err, "You have been recently ejected from this claim. "
 					+ "You must wait before entering again");
-			GriefPrevention.ejectPlayer(p);
+			GriefPrevention.instance.ejectPlayer(p);
 		}
 	}
 	
@@ -171,6 +190,16 @@ class PlayerEventHandler implements Listener
 		//troll and excessive profanity filter
 		else if(!player.hasPermission("griefprevention.spam") && this.bannedWordFinder.hasMatch(message))
         {
+		    //allow admins to see the soft-muted text
+		    String notificationMessage = "(Muted " + player.getName() + "): " + message;
+		    for(Player recipient : recipients)
+            {
+                if(recipient.hasPermission("griefprevention.eavesdrop"))
+                {
+                    recipient.sendMessage(ChatColor.GRAY + notificationMessage);
+                }
+            }
+		    
 		    //limit recipients to sender
 		    recipients.clear();
             recipients.add(player);
@@ -191,8 +220,7 @@ class PlayerEventHandler implements Listener
             //otherwise assume chat troll and mute all chat from this sender until an admin says otherwise
             else if(GriefPrevention.instance.config_trollFilterEnabled)
             {
-            	String notificationMessage = "(Auto-Muted " + player.getName() + "): " + message;
-                GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.", CustomLogEntryTypes.AdminActivity);
+            	GriefPrevention.AddLogEntry("Auto-muted new player " + player.getName() + " for profanity shortly after join.  Use /SoftMute to undo.", CustomLogEntryTypes.AdminActivity);
                 GriefPrevention.AddLogEntry(notificationMessage, CustomLogEntryTypes.MutedChat, false);
                 GriefPrevention.instance.dataStore.toggleSoftMute(player.getUniqueId());
             }
@@ -233,14 +261,7 @@ class PlayerEventHandler implements Listener
 		}
 	}
 	
-	//last chat message shown, regardless of who sent it
-	private String lastChatMessage = "";
-	private long lastChatMessageTimestamp = 0;
-	
-	//number of identical messages in a row
-	private int duplicateMessageCount = 0;
-	
-	//returns true if the message should be sent, false if it should be muted 
+	//returns true if the message should be muted, true if it should be sent 
 	private boolean handlePlayerChat(Player player, String message, PlayerEvent event)
 	{
 		//FEATURE: automatically educate players about claiming land
@@ -276,235 +297,84 @@ class PlayerEventHandler implements Listener
 		//if the player has permission to spam, don't bother even examining the message
 		if(player.hasPermission("griefprevention.spam")) return false;
 		
-		boolean spam = false;
-		String mutedReason = null;
+		//examine recent messages to detect spam
+		SpamAnalysisResult result = this.spamDetector.AnalyzeMessage(player.getUniqueId(), message, System.currentTimeMillis());
 		
-		//prevent bots from chatting - require movement before talking for any newish players
-        PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
-		if(playerData.noChatLocation != null)
+		//apply any needed changes to message (like lowercasing all-caps)
+		if(event instanceof AsyncPlayerChatEvent)
+        {
+            ((AsyncPlayerChatEvent)event).setMessage(result.finalMessage);
+        }
+		
+		//don't allow new players to chat after logging in until they move
+		PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
+        if(playerData.noChatLocation != null)
         {
 		    Location currentLocation = player.getLocation();
             if(currentLocation.getBlockX() == playerData.noChatLocation.getBlockX() &&
                currentLocation.getBlockZ() == playerData.noChatLocation.getBlockZ())
             {
                 GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoChatUntilMove, 10L);
-                spam = true;
-                mutedReason = "pre-movement chat";
+                result.muteReason = "pre-movement chat";
             }
             else
             {
                 playerData.noChatLocation = null;
             }
         }
-		
-		//remedy any CAPS SPAM, exception for very short messages which could be emoticons like =D or XD
-		if(message.length() > 4 && this.stringsAreSimilar(message.toUpperCase(), message))
-		{
-			//exception for strings containing forward slash to avoid changing a case-sensitive URL
-			if(event instanceof AsyncPlayerChatEvent)
-			{
-				((AsyncPlayerChatEvent)event).setMessage(message.toLowerCase());
-			}
-		}
-		
-		//always mute an exact match to the last chat message
-		long now = new Date().getTime();
-		if(mutedReason != null && message.equals(this.lastChatMessage) && now - this.lastChatMessageTimestamp < 750)
-		{
-		    playerData.spamCount += ++this.duplicateMessageCount;
-		    spam = true;
-		    mutedReason = "repeat message";
-		}
-		else
-		{
-		    this.lastChatMessage = message;
-		    this.lastChatMessageTimestamp = now;
-		    this.duplicateMessageCount = 0;
-		}
-		
-		//where other types of spam are concerned, casing isn't significant
-		message = message.toLowerCase();
-		
-		//check message content and timing		
-		long millisecondsSinceLastMessage = now - playerData.lastMessageTimestamp.getTime();
-		
-		//if the message came too close to the last one
-		if(millisecondsSinceLastMessage < 1500)
-		{
-			//increment the spam counter
-			playerData.spamCount++;
-			spam = true;
-		}
-		
-		//if it's very similar to the last message from the same player and within 10 seconds of that message
-		if(mutedReason == null && this.stringsAreSimilar(message, playerData.lastMessage) && now - playerData.lastMessageTimestamp.getTime() < 10000)
-		{
-			playerData.spamCount++;
-			spam = true;
-			mutedReason = "similar message";
-		}
-		
-		//filter IP addresses
-		if(mutedReason == null)
-		{
-			if(GriefPrevention.instance.containsBlockedIP(message))
-			{
-				//spam notation
-				playerData.spamCount+=1;
-				spam = true;
-				
-				//block message
-				mutedReason = "IP address";
-			}
-		}
-		
-		//if the message was mostly non-alpha-numerics or doesn't include much whitespace, consider it a spam (probably ansi art or random text gibberish) 
-		if(mutedReason == null && message.length() > 5)
-		{
-			int symbolsCount = 0;
-			int whitespaceCount = 0;
-			for(int i = 0; i < message.length(); i++)
-			{
-				char character = message.charAt(i);
-				if(!(Character.isLetterOrDigit(character)))
-				{
-					symbolsCount++;
-				}
-				
-				if(Character.isWhitespace(character))
-				{
-					whitespaceCount++;
-				}
-			}
-			
-			if(symbolsCount > message.length() / 2 || (message.length() > 15 && whitespaceCount < message.length() / 10))
-			{
-				spam = true;
-				if(playerData.spamCount > 0) mutedReason = "gibberish";
-				playerData.spamCount++;
-			}
-		}
-		
-		//very short messages close together are spam
-		if(mutedReason == null && message.length() < 5 && millisecondsSinceLastMessage < 3000)
-		{
-			spam = true;
-			playerData.spamCount++;
-		}
-		
-		//in any case, record the timestamp of this message and also its content for next time
-        playerData.lastMessageTimestamp = new Date();
-        playerData.lastMessage = message;
-		
-		//if the message was determined to be a spam, consider taking action		
-		if(spam)
-		{		
-			//anything above level 8 for a player which has received a warning...  kick or if enabled, ban 
-			if(playerData.spamCount > 8 && playerData.spamWarned)
-			{
-				if(GriefPrevention.instance.config_spam_banOffenders)
-				{
-					//log entry
-					GriefPrevention.AddLogEntry("Banning " + player.getName() + " for spam.", CustomLogEntryTypes.AdminActivity);
-					
-					//kick and ban
-					PlayerKickBanTask task = new PlayerKickBanTask(player, GriefPrevention.instance.config_spam_banMessage, "GriefPrevention Anti-Spam",true);
-					GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1L);
-				}
-				else
-				{
-					//log entry
-					GriefPrevention.AddLogEntry("Kicking " + player.getName() + " for spam.", CustomLogEntryTypes.AdminActivity);
-					
-					//just kick
-					PlayerKickBanTask task = new PlayerKickBanTask(player, "", "GriefPrevention Anti-Spam", false);
-					GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1L);					
-				}
-				
-				return true;
-			}
-			
-			//cancel any messages while at or above the third spam level and issue warnings
-			//anything above level 2, mute and warn
-			if(playerData.spamCount >= 4)
-			{
-				if(mutedReason == null)
-				{
-				    mutedReason = "too-frequent text";
-				}
-				if(!playerData.spamWarned)
-				{
-					GriefPrevention.sendMessage(player, TextMode.Warn, GriefPrevention.instance.config_spam_warningMessage, 10L);
-					GriefPrevention.AddLogEntry("Warned " + player.getName() + " about spam penalties.", CustomLogEntryTypes.Debug, true);
-					playerData.spamWarned = true;
-				}
-			}
-			
-			if(mutedReason != null)
-			{
-				//make a log entry
-				GriefPrevention.AddLogEntry("Muted " + mutedReason + ".");
-				GriefPrevention.AddLogEntry("Muted " + player.getName() + " " + mutedReason + ":" + message, CustomLogEntryTypes.Debug, true);
-				
-				//cancelling the event guarantees other players don't receive the message
-				return true;
-			}		
-		}
-		
-		//otherwise if not a spam, reset the spam counter for this player
-		else
-		{
-			playerData.spamCount = 0;
-			playerData.spamWarned = false;
-		}
-		
-		return false;
+        
+        //filter IP addresses
+        if(result.muteReason == null)
+        {
+            if(GriefPrevention.instance.containsBlockedIP(message))
+            {
+                //block message
+                result.muteReason = "IP address";
+            }
+        }
+        
+        //take action based on spam detector results
+        if(result.shouldBanChatter)
+        {
+            if(GriefPrevention.instance.config_spam_banOffenders)
+            {
+                //log entry
+                GriefPrevention.AddLogEntry("Banning " + player.getName() + " for spam.", CustomLogEntryTypes.AdminActivity);
+                
+                //kick and ban
+                PlayerKickBanTask task = new PlayerKickBanTask(player, GriefPrevention.instance.config_spam_banMessage, "GriefPrevention Anti-Spam",true);
+                GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1L);
+            }
+            else
+            {
+                //log entry
+                GriefPrevention.AddLogEntry("Kicking " + player.getName() + " for spam.", CustomLogEntryTypes.AdminActivity);
+                
+                //just kick
+                PlayerKickBanTask task = new PlayerKickBanTask(player, "", "GriefPrevention Anti-Spam", false);
+                GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 1L);                    
+            }
+        }
+        
+        else if(result.shouldWarnChatter)
+        {
+            //warn and log
+            GriefPrevention.sendMessage(player, TextMode.Warn, GriefPrevention.instance.config_spam_warningMessage, 10L);
+            GriefPrevention.AddLogEntry("Warned " + player.getName() + " about spam penalties.", CustomLogEntryTypes.Debug, true);
+        }
+        
+        if(result.muteReason != null)
+        {
+            //mute and log
+            GriefPrevention.AddLogEntry("Muted " + result.muteReason + ".");
+            GriefPrevention.AddLogEntry("Muted " + player.getName() + " " + result.muteReason + ":" + message, CustomLogEntryTypes.Debug, true);
+
+            return true;
+        }
+        
+        return false;
 	}
 	
-	//if two strings are 75% identical, they're too close to follow each other in the chat
-	private boolean stringsAreSimilar(String message, String lastMessage)
-	{
-	    //determine which is shorter
-		String shorterString, longerString;
-		if(lastMessage.length() < message.length())
-		{
-			shorterString = lastMessage;
-			longerString = message;
-		}
-		else
-		{
-			shorterString = message;
-			longerString = lastMessage;
-		}
-		
-		if(shorterString.length() <= 5) return shorterString.equals(longerString);
-		
-		//set similarity tolerance
-		int maxIdenticalCharacters = longerString.length() - longerString.length() / 4;
-		
-		//trivial check on length
-		if(shorterString.length() < maxIdenticalCharacters) return false;
-		
-		//compare forward
-		int identicalCount = 0;
-		int i;
-		for(i = 0; i < shorterString.length(); i++)
-		{
-			if(shorterString.charAt(i) == longerString.charAt(i)) identicalCount++;
-			if(identicalCount > maxIdenticalCharacters) return true;
-		}
-		
-		//compare backward
-		int j;
-		for(j = 0; j < shorterString.length() - i; j++)
-		{
-			if(shorterString.charAt(shorterString.length() - j - 1) == longerString.charAt(longerString.length() - j - 1)) identicalCount++;
-			if(identicalCount > maxIdenticalCharacters) return true;
-		}
-		
-		return false;
-	}
-
 	//when a player uses a slash command...
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	synchronized void onPlayerCommandPreprocess (PlayerCommandPreprocessEvent event)
@@ -734,32 +604,6 @@ class PlayerEventHandler implements Listener
 
     private ConcurrentHashMap<UUID, Date> lastLoginThisServerSessionMap = new ConcurrentHashMap<UUID, Date>();
 
-    //counts how many players are using each IP address connected to the server right now
-    private ConcurrentHashMap<String, Integer> ipCountHash = new ConcurrentHashMap<String, Integer>();
-    
-    @EventHandler(priority = EventPriority.HIGHEST)
-    void onInventoryOpen (InventoryOpenEvent event){
-    	if(event.isCancelled()) return;
-    	Inventory inv = event.getInventory();
-    	Location loc = null;
-    	if(inv != null){
-    		if(inv.getHolder() instanceof BlockState)
-    			loc = inv.getLocation();
-    	}
-    	if(loc == null) return;
-    	Claim claim = this.dataStore.getClaimAt(loc, false, null);
-    	if(claim == null) return;
-    	Player player = (Player) event.getPlayer();    	
-    	String noContainersReason = claim.allowContainers(player);
-		if(noContainersReason != null)
-		{
-			GriefPrevention.sendMessage(player, TextMode.Err, noContainersReason);
-			event.setCancelled(true);
-			return;
-		}
-    	
-    }
-	
 	//when a player attempts to join the server...
 	@EventHandler(priority = EventPriority.HIGHEST)
 	void onPlayerLogin (PlayerLoginEvent event)
@@ -921,26 +765,33 @@ class PlayerEventHandler implements Listener
         InetAddress ipAddress = playerData.ipAddress;
         if(ipAddress != null)
         {
-            String ipAddressString = ipAddress.toString();
             int ipLimit = GriefPrevention.instance.config_ipLimit;
             if(ipLimit > 0 && GriefPrevention.isNewToServer(player))
             {
-                Integer ipCount = this.ipCountHash.get(ipAddressString);
-                if(ipCount == null) ipCount = 0;
+                int ipCount = 0;
+                
+                @SuppressWarnings("unchecked")
+                Collection<Player> players = (Collection<Player>)GriefPrevention.instance.getServer().getOnlinePlayers();
+                for(Player onlinePlayer : players)
+                {
+                    if(onlinePlayer.getUniqueId().equals(player.getUniqueId())) continue;
+                    
+                    PlayerData otherData = GriefPrevention.instance.dataStore.getPlayerData(onlinePlayer.getUniqueId());
+                    if(ipAddress.equals(otherData.ipAddress) && GriefPrevention.isNewToServer(onlinePlayer))
+                    {
+                        ipCount++;
+                    }
+                }
+                
                 if(ipCount >= ipLimit)
                 {
                     //kick player
-                    PlayerKickBanTask task = new PlayerKickBanTask(player, "Sorry, there are too many players logged in with your IP address.", "GriefPrevention IP-sharing limit.", false);
-                    GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 10L);
+                    PlayerKickBanTask task = new PlayerKickBanTask(player, GriefPrevention.instance.dataStore.getMessage(Messages.TooMuchIpOverlap), "GriefPrevention IP-sharing limit.", false);
+                    GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 100L);
                     
                     //silence join message
                     event.setJoinMessage(null);
                     return;
-                }
-                else
-                {
-                    this.ipCountHash.put(ipAddressString, ipCount + 1);
-                    playerData.ipLimited = true;
                 }
             }
         }
@@ -953,7 +804,8 @@ class PlayerEventHandler implements Listener
         if(returnLocation != null)
         {
             PlayerEventHandler.portalReturnMap.remove(player.getUniqueId());
-            if(player.getLocation().getBlock().getType() == Material.PORTAL)
+			Block playerBlock = player.getLocation().getBlock();
+			if(playerBlock.getType() == Material.PORTAL || isInNonOccludingBlock(playerBlock))
             {
                 player.teleport(returnLocation);
             }
@@ -975,7 +827,28 @@ class PlayerEventHandler implements Listener
             }
         }
 	}
-	
+
+	boolean isInNonOccludingBlock(Block block)
+	{
+		Material playerBlock = block.getType();
+		//Most blocks you can "stand" inside but cannot pass through (isSolid) usually can be seen through (!isOccluding)
+		//This can cause players to technically be considered not in a portal block, yet in reality is still stuck in the portal animation.
+		if ((!playerBlock.isSolid() || playerBlock.isOccluding())) //If it is _not_ such a block,
+		{
+			//Check the block above
+			playerBlock = block.getRelative(BlockFace.UP).getType();
+			if ((!playerBlock.isSolid() || playerBlock.isOccluding()))
+				return false; //player is not stuck
+		}
+		//Check if this block is also adjacent to a portal
+		if (block.getRelative(BlockFace.EAST).getType() == Material.PORTAL
+				|| block.getRelative(BlockFace.WEST).getType() == Material.PORTAL
+				|| block.getRelative(BlockFace.NORTH).getType() == Material.PORTAL
+				|| block.getRelative(BlockFace.SOUTH).getType() == Material.PORTAL)
+			return true;
+		return false;
+	}
+
 	//when a player spawns, conditionally apply temporary pvp protection 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     void onPlayerRespawn (PlayerRespawnEvent event)
@@ -983,6 +856,7 @@ class PlayerEventHandler implements Listener
         Player player = event.getPlayer();
         PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
         playerData.lastSpawn = Calendar.getInstance().getTimeInMillis();
+        playerData.lastPvpTimestamp = 0;  //no longer in pvp combat
         
         //also send him any messaged from grief prevention he would have received while dead
         if(playerData.messageOnRespawn != null)
@@ -1015,7 +889,6 @@ class PlayerEventHandler implements Listener
 		PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
 		playerData.dropsAreUnlocked = false;
 		playerData.receivedDropUnlockAdvertisement = false;
-        playerData.lastPvpTimestamp = 0;  //no longer in pvp combat
 	}
 	
 	//when a player gets kicked...
@@ -1082,19 +955,6 @@ class PlayerEventHandler implements Listener
         if(playerData.siegeData != null)
         {
             if(player.getHealth() > 0) player.setHealth(0);  //might already be zero from above, this avoids a double death message
-        }
-        
-        //reduce count of players with that player's IP address
-        if(GriefPrevention.instance.config_ipLimit > 0 && playerData.ipLimited)
-        {
-            InetAddress ipAddress = playerData.ipAddress;
-            if(ipAddress != null)
-            {
-                String ipAddressString = ipAddress.toString();
-                Integer count = this.ipCountHash.get(ipAddressString);
-                if(count == null) count = 1;
-                this.ipCountHash.put(ipAddressString, count - 1);
-            }
         }
         
         //drop data about this player
@@ -1274,6 +1134,9 @@ class PlayerEventHandler implements Listener
 		//these rules only apply to siege worlds only
 		if(!GriefPrevention.instance.config_siege_enabledWorlds.contains(player.getWorld())) return;
 		
+		//these rules do not apply to admins
+		if(player.hasPermission("griefprevention.siegeteleport")) return;
+		
 		Location source = event.getFrom();
 		Claim sourceClaim = this.dataStore.getClaimAt(source, false, playerData.lastClaim);
 		if(sourceClaim != null && sourceClaim.siegeData != null)
@@ -1305,18 +1168,17 @@ class PlayerEventHandler implements Listener
 		}
 	}
 	
-	//when a player interacts with an ArmorStand. Only way to make it work
-	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+	//when a player interacts with a specific part of entity...
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
     public void onPlayerInteractAtEntity(PlayerInteractAtEntityEvent event)
-	{
+    {
         //treat it the same as interacting with an entity in general
         if(event.getRightClicked().getType() == EntityType.ARMOR_STAND)
-		//dunno if ryan's coded logic for ArmorStand in the build reason, so just check for item frame
-		{
+        {
             this.onPlayerInteractEntity((PlayerInteractEntityEvent)event);
-		}
-	}
- 
+        }
+    }
+    
 	//when a player interacts with an entity...
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onPlayerInteractEntity(PlayerInteractEntityEvent event)
@@ -1378,7 +1240,7 @@ class PlayerEventHandler implements Listener
                 {
                     InventoryHolder holder = (InventoryHolder)tameable;
                     holder.getInventory().clear();
-               }
+                }
             }
         }
         
@@ -1738,7 +1600,6 @@ class PlayerEventHandler implements Listener
 	    if(action == Action.LEFT_CLICK_AIR) return;
 	    if(action == Action.PHYSICAL) return;
 	    
-	    
 	    Player player = event.getPlayer();
 		Block clickedBlock = event.getClickedBlock(); //null returned here means interacting with air
 		
@@ -1958,7 +1819,7 @@ class PlayerEventHandler implements Listener
 			Material materialInHand = itemInHand.getType();		
 			
 			//if it's bonemeal or armor stand or spawn egg, check for build permission (ink sac == bone meal, must be a Bukkit bug?)
-			if(clickedBlock != null && (materialInHand == Material.INK_SACK || materialInHand == Material.ARMOR_STAND || materialInHand == Material.MONSTER_EGG ||
+			if(clickedBlock != null && (materialInHand == Material.INK_SACK || materialInHand == Material.ARMOR_STAND || materialInHand == Material.MONSTER_EGG || materialInHand == Material.END_CRYSTAL ||
 					(materialInHand == Material.FLINT_AND_STEEL && clickedBlockType == Material.TNT) || materialInHand == Material.ANVIL ))
 			{
 				String noBuildReason = GriefPrevention.instance.allowBuild(player, clickedBlock.getLocation(), clickedBlockType);

@@ -1029,7 +1029,6 @@ public abstract class DataStore
 		//if the claim should be opened to looting
 		if(grantAccess)
 		{
-			@SuppressWarnings("deprecation")
 			Player winner = GriefPrevention.instance.getServer().getPlayer(winnerName);
 			if(winner != null)
 			{
@@ -1045,9 +1044,7 @@ public abstract class DataStore
 		//if the siege ended due to death, transfer inventory to winner
 		if(drops != null)
 		{
-			@SuppressWarnings("deprecation")
 			Player winner = GriefPrevention.instance.getServer().getPlayer(winnerName);
-			@SuppressWarnings("deprecation")
 			Player loser = GriefPrevention.instance.getServer().getPlayer(loserName);
 			if(winner != null && loser != null)
 			{
@@ -1067,6 +1064,8 @@ public abstract class DataStore
 						winnerLocation.getWorld().dropItemNaturally(winnerLocation, wontFitItems.get(key));
 					}
 				}
+				
+				drops.clear();
 			}
 		}
 	}
@@ -1144,14 +1143,14 @@ public abstract class DataStore
 	}		
 	
 	//deletes all claims owned by a player
-	synchronized public void deleteClaimsForPlayer(UUID playerID, boolean deleteCreativeClaims)
+	synchronized public void deleteClaimsForPlayer(UUID playerID, boolean releasePets)
 	{
 		//make a list of the player's claims
 		ArrayList<Claim> claimsToDelete = new ArrayList<Claim>();
 		for(int i = 0; i < this.claims.size(); i++)
 		{
 			Claim claim = this.claims.get(i);
-			if((playerID == claim.ownerID || (playerID != null && playerID.equals(claim.ownerID))) && (deleteCreativeClaims || !GriefPrevention.instance.creativeRulesApply(claim.getLesserBoundaryCorner())))
+			if((playerID == claim.ownerID || (playerID != null && playerID.equals(claim.ownerID))))
 				claimsToDelete.add(claim);
 		}
 		
@@ -1161,7 +1160,7 @@ public abstract class DataStore
 			Claim claim = claimsToDelete.get(i); 
 			claim.removeSurfaceFluids(null);
 			
-			this.deleteClaim(claim, true);
+			this.deleteClaim(claim, releasePets);
 			
 			//if in a creative mode world, delete the claim
 			if(GriefPrevention.instance.creativeRulesApply(claim.getLesserBoundaryCorner()))
@@ -1434,6 +1433,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.AlreadyUnderSiegePlayer, "{0} is already under siege.  Join the party!", "0: defending player");
 		this.addDefault(defaults, Messages.NotSiegableThere, "{0} isn't protected there.", "0: defending player");
 		this.addDefault(defaults, Messages.SiegeTooFarAway, "You're too far away to siege.", null);
+		this.addDefault(defaults, Messages.NoSiegeYourself, "You cannot siege yourself, don't be silly", null);
 		this.addDefault(defaults, Messages.NoSiegeDefenseless, "That player is defenseless.  Go pick on somebody else.", null);
 		this.addDefault(defaults, Messages.AlreadyUnderSiegeArea, "That area is already under siege.  Join the party!", null);
 		this.addDefault(defaults, Messages.NoSiegeAdminClaim, "Siege is disabled in this area.", null);
@@ -1625,6 +1625,7 @@ public abstract class DataStore
 		this.addDefault(defaults, Messages.IsIgnoringYou, "That player is ignoring you.", null);
 		this.addDefault(defaults, Messages.ConsoleOnlyCommand, "That command may only be executed from the server console.", null);
 		this.addDefault(defaults, Messages.WorldNotFound, "World not found.", null);
+		this.addDefault(defaults, Messages.TooMuchIpOverlap, "Sorry, there are too many players logged in with your IP address.", null);
 		
 		//load the config file
 		FileConfiguration config = YamlConfiguration.loadConfiguration(new File(messagesFilePath));

@@ -74,6 +74,7 @@ import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityInteractEvent;
+import org.bukkit.event.entity.EntityPortalEnterEvent;
 import org.bukkit.event.entity.ExpBottleEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
@@ -187,7 +188,8 @@ public class EntityEventHandler implements Listener
 		    else
 		    {
 		         List<MetadataValue> values = entity.getMetadata("GP_FALLINGBLOCK");
-		         
+				 //If entity fell through an end portal, allow it to form, as the event is erroneously fired twice in this scenario.
+				 if (entity.hasMetadata("GP_FELLTHROUGHPORTAL")) return;
 		         //if we're not sure where this entity came from (maybe another plugin didn't follow the standard?), allow the block to form
 		         if(values.size() < 1) return;
 		         
@@ -218,6 +220,15 @@ public class EntityEventHandler implements Listener
 		         }
 		    }
 		}
+	}
+
+	//Used by "sand cannon" fix to ignore fallingblocks that fell through End Portals
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+	public void onFallingBlockEnterPortal(EntityPortalEnterEvent event)
+	{
+		if (event.getEntityType() != EntityType.FALLING_BLOCK)
+			return;
+		event.getEntity().setMetadata("GP_FELLTHROUGHPORTAL", new FixedMetadataValue(GriefPrevention.instance, true));
 	}
 	
 	//don't allow zombies to break down doors
@@ -630,7 +641,7 @@ public class EntityEventHandler implements Listener
         if(entity instanceof Monster) return true;
         
         EntityType type = entity.getType();
-        if(type == EntityType.GHAST || type == EntityType.MAGMA_CUBE || type == EntityType.SHULKER) return true;
+        if(type == EntityType.GHAST || type == EntityType.MAGMA_CUBE || type == EntityType.SHULKER || type == EntityType.POLAR_BEAR) return true;
         
         if(type == EntityType.RABBIT)
         {
@@ -864,8 +875,47 @@ public class EntityEventHandler implements Listener
         {
             //don't track in worlds where claims are not enabled
             if(!GriefPrevention.instance.claimsEnabledForWorld(event.getEntity().getWorld())) return;
+
+            //protect players from being attacked by other players' pets when protected from pvp
+            if(event.getEntityType() == EntityType.PLAYER)
+            {
+                Player defender = (Player)event.getEntity();
+                
+                //if attacker is a pet
+                Entity damager = subEvent.getDamager();
+                if(damager != null && damager instanceof Tameable)
+                {
+                    Tameable pet = (Tameable) damager;
+                    if(pet.isTamed() && pet.getOwner() != null)
+                    {
+                        //if defender is NOT in pvp combat and not immune to pvp right now due to recent respawn
+                        PlayerData defenderData = GriefPrevention.instance.dataStore.getPlayerData(event.getEntity().getUniqueId());
+                        if(!defenderData.pvpImmune && !defenderData.inPvpCombat())
+                        {
+                            //if defender is not in a protected area
+                            Claim defenderClaim = this.dataStore.getClaimAt(defender.getLocation(), false, defenderData.lastClaim);
+                            if( defenderClaim != null &&
+                                !defenderData.inPvpCombat() &&
+                                GriefPrevention.instance.claimIsPvPSafeZone(defenderClaim))
+                            {
+                                defenderData.lastClaim = defenderClaim;
+                                PreventPvPEvent pvpEvent = new PreventPvPEvent(defenderClaim);
+                                Bukkit.getPluginManager().callEvent(pvpEvent);
+                                
+                                //if other plugins aren't making an exception to the rule 
+                                if(!pvpEvent.isCancelled())
+                                {
+                                    event.setCancelled(true);
+                                    if(damager instanceof Creature) ((Creature) damager).setTarget(null);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             
-            //if the damaged entity is a claimed item frame or armor stand, the damager needs to be a player with container trust in the claim
+            //if the damaged entity is a claimed item frame or armor stand, the damager needs to be a player with build trust in the claim
             if(subEvent.getEntityType() == EntityType.ITEM_FRAME
                || subEvent.getEntityType() == EntityType.ARMOR_STAND
                || subEvent.getEntityType() == EntityType.VILLAGER
@@ -966,6 +1016,7 @@ public class EntityEventHandler implements Listener
                 if(attacker == null
                         && damageSource != null
                         && damageSource.getType() != EntityType.CREEPER
+                        && damageSource.getType() != EntityType.WITHER
                         && damageSource.getType() != EntityType.ENDER_CRYSTAL
                         && damageSource.getType() != EntityType.AREA_EFFECT_CLOUD
                         && !(damageSource instanceof Projectile)
@@ -1133,7 +1184,7 @@ public class EntityEventHandler implements Listener
 		}
 		
 		//if not a player and not an explosion, always allow
-        if(attacker == null && damageSourceType != EntityType.CREEPER && damageSourceType != EntityType.PRIMED_TNT)
+        if(attacker == null && damageSourceType != EntityType.CREEPER && damageSourceType != EntityType.WITHER && damageSourceType != EntityType.PRIMED_TNT)
         {
             return;
         }

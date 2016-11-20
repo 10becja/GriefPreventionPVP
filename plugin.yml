@@ -4,7 +4,7 @@ main: me.ryanhamshire.GriefPrevention.GriefPrevention
 softdepend: [Vault, Multiverse-Core, My Worlds, MystCraft, Transporter, TheUnderground, WorldGuard, WorldEdit, RoyalCommands, MultiWorld, Denizen]
 dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
-version: 14.9
+version: 15.2.2
 commands:
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
@@ -272,6 +272,7 @@ permissions:
             griefprevention.seeinactivity: true
             griefprevention.eavesdropimmune: true
             griefprevention.deleteclaimsinworld: true
+            griefprevention.siegeteleport: true
     griefprevention.siegeimmune:
         description: Makes a player immune to /Siege.
         default: op
@@ -380,3 +381,6 @@ permissions:
     griefprevention.mostaccrued:
         description: Players with this permission can accrue more claim blocks (limit specified in the config file).
         default: false
+    griefprevention.siegeteleport:
+        description: Players with this permission can teleport into and out of besieged areas.
+        default: op

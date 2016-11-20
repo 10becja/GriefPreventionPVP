@@ -86,11 +86,7 @@ public class PlayerData
 	
 	//spam
 	private Date lastLogin = null;					//when the player last logged into the server
-    public String lastMessage = "";					//the player's last chat message, or slash command complete with parameters 
-	public Date lastMessageTimestamp = new Date();  //last time the player sent a chat message or used a monitored slash command
-	public int spamCount = 0;						//number of consecutive "spams"
-	public boolean spamWarned = false;				//whether the player recently received a warning
-	
+    
 	//visualization
 	public Visualization currentVisualization = null;
 	
@@ -135,6 +131,9 @@ public class PlayerData
 	//this is an anti-bot strategy.
 	Location noChatLocation = null;
 	
+	//last sign message, to prevent sign spam
+	String lastSignMessage = null;
+	
 	//ignore list
 	//true means invisible (admin-forced ignore), false means player-created ignore
 	public ConcurrentHashMap<UUID, Boolean> ignoredPlayers = new ConcurrentHashMap<UUID, Boolean>();
@@ -142,9 +141,6 @@ public class PlayerData
 
     //profanity warning, once per play session
 	boolean profanityWarned = false;
-
-    //true when the player's IP address was counted against the re-use limit when he joined
-	boolean ipLimited = false;
 
 	//whether or not this player is "in" pvp combat
 	public boolean inPvpCombat()
