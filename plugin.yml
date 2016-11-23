@@ -6,6 +6,10 @@ dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
 version: 15.2.2
 commands:
+   dibs:
+      description: Allows players to place dibs on expired claims.
+      usage: /dibs
+      permission: griefprevention.dibs
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
    claimprotect:

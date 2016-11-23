@@ -53,6 +53,9 @@ public class Claim
 	//permissions for this claim, see ClaimPermission class
 	private HashMap<String, ClaimPermission> playerIDToClaimPermissionMap = new HashMap<String, ClaimPermission>();
 	
+	//people who have placed dibs on this claim
+	public ArrayList<UUID> dibers = new ArrayList<UUID>();
+	
 	//whether or not this claim is in the data store
 	//if a claim instance isn't in the data store, it isn't "active" - players can't interract with it 
 	//why keep this?  so that claims which have been removed from the data store can be correctly 

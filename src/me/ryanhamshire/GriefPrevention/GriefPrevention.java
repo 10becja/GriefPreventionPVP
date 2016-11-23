@@ -122,6 +122,7 @@ public class GriefPrevention extends JavaPlugin
 	public int config_claims_maxAccruedBlocks_most;                 //the limit on accrued blocks (over time) for players who have the griefprevention.mostaccrued permission
 	public int config_claims_maxDepth;								//limit on how deep claims can go
 	public int config_claims_expirationDays;						//how many days of inactivity before a player loses his claims
+	public int config_claims_expirationDaysForDibs;					//How many days before others can place dibs on a claim
 	public int config_claims_expirationExemptionTotalBlocks;        //total claim blocks amount which will exempt a player from claim expiration
 	public int config_claims_expirationExemptionBonusBlocks;        //bonus claim blocks amount which will exempt a player from claim expiration
 	
@@ -562,6 +563,7 @@ public class GriefPrevention extends JavaPlugin
         this.config_claims_chestClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.ChestClaimDays", 7);
         this.config_claims_unusedClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.UnusedClaimDays", 14);
         this.config_claims_expirationDays = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", 60);
+        this.config_claims_expirationDaysForDibs = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactiveForDibs", 30);
         this.config_claims_expirationExemptionTotalBlocks = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasTotalClaimBlocks", 10000);
         this.config_claims_expirationExemptionBonusBlocks = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasBonusClaimBlocks", 5000);
         this.config_claims_survivalAutoNatureRestoration = config.getBoolean("GriefPrevention.Claims.Expiration.AutomaticNatureRestoration.SurvivalWorlds", false);
@@ -804,6 +806,7 @@ public class GriefPrevention extends JavaPlugin
         outConfig.set("GriefPrevention.Claims.Expiration.ChestClaimDays", this.config_claims_chestClaimExpirationDays);
         outConfig.set("GriefPrevention.Claims.Expiration.UnusedClaimDays", this.config_claims_unusedClaimExpirationDays);       
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", this.config_claims_expirationDays);
+        outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.DaysInactiveForDibs", this.config_claims_expirationDaysForDibs);
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasTotalClaimBlocks", this.config_claims_expirationExemptionTotalBlocks);
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasBonusClaimBlocks", this.config_claims_expirationExemptionBonusBlocks);
         outConfig.set("GriefPrevention.Claims.Expiration.AutomaticNatureRestoration.SurvivalWorlds", this.config_claims_survivalAutoNatureRestoration);
@@ -974,6 +977,10 @@ public class GriefPrevention extends JavaPlugin
 		if (sender instanceof Player) 
 		{
 			player = (Player) sender;
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("dibs")){
+			return this.handleDibs(player);
 		}
 		
 		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
@@ -3598,6 +3605,30 @@ public class GriefPrevention extends JavaPlugin
 	public static List<String> getBlocked()
 	{
 		return blocked;
+	}
+	
+	private boolean handleDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.dibers.contains(player.getUniqueId())){
+			GriefPrevention.sendMessage(player, TextMode.Warn, "You have already placed dibs on this claim.");
+		}
+		else{
+			PlayerData pd = this.dataStore.getPlayerData(claim.ownerID);
+			Calendar lastLogin = Calendar.getInstance();
+			lastLogin.add(Calendar.DATE, -config_claims_expirationDaysForDibs);
+			if(lastLogin.getTime().after(pd.getLastLogin())){
+				claim.dibers.add(player.getUniqueId());
+				dataStore.saveClaim(claim);
+			}
+			else{
+				GriefPrevention.sendMessage(player, TextMode.Err, "This claim isn't available for dibs yet");
+			}
+		}
+		
+		return true;
 	}
 	
 	private boolean allowenterCommand(Player player, String[] args)
