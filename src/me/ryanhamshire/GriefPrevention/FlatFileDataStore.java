@@ -510,6 +510,7 @@ public class FlatFileDataStore extends DataStore
         
         List<String> managers = yaml.getStringList("Managers");
         
+        
         out_parentID.add(yaml.getLong("Parent Claim ID", -1L));
         
         Boolean isPvpAllowed = yaml.getBoolean("isPvpAllowed");
@@ -539,7 +540,6 @@ public class FlatFileDataStore extends DataStore
         ArrayList<String> containers = new ArrayList<String>();
         ArrayList<String> accessors = new ArrayList<String>();
         ArrayList<String> managers = new ArrayList<String>();
-        ArrayList<UUID> dibers = new ArrayList<UUID>();
         claim.getPermissions(builders, containers, accessors, managers);
         
         yaml.set("Builders", builders);
@@ -547,7 +547,7 @@ public class FlatFileDataStore extends DataStore
         yaml.set("Accessors", accessors);
         yaml.set("Managers", managers);
         yaml.set("isPvpAllowed", claim.isPvpAllowed);
-        yaml.set("dibers", );
+        yaml.set("dibers", claim.dibers);
         
         Long parentID = -1L;
         if(claim.parent != null)
