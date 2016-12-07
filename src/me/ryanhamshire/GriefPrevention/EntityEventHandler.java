@@ -837,32 +837,6 @@ public class EntityEventHandler implements Listener
                         }
                     }
                 }
-    			
-    			//only place someone in combat, blah blah, if the event isn't canceled
-    			if(!(event.isCancelled()))
-    			{
-	    			//FEATURE: prevent players who very recently participated in pvp combat from hiding inventory to protect it from looting
-	    			//FEATURE: prevent players who are in pvp combat from logging out to avoid being defeated
-	    			
-	    			//warn both attacker and defender, but only if they aren't already in combat
-	    			if(!(defenderData.inPvpCombat()) && defender != null)
-	    				GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.CombatTaggedDefender, attacker.getName(), ((Integer) GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
-	    			if(!(attackerData.inPvpCombat()) && attacker != null)
-	    				GriefPrevention.sendMessage(attacker, TextMode.Warn, Messages.CombatTaggedAttacker, defender.getName(), ((Integer)GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
-	    			
-	    			long now = Calendar.getInstance().getTimeInMillis();
-	    			defenderData.lastPvpTimestamp = now;
-	    			defenderData.lastPvpPlayer = attacker.getName();
-	    			attackerData.lastPvpTimestamp = now;
-	    			attackerData.lastPvpPlayer = defender.getName();
-	    			if(Bukkit.getPluginManager().getPlugin("EchoPet") != null)
-	    			{
-		    			if(!defenderData.inPvpCombat())
-		    				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "petadmin remove " + defender.getName());
-		    			if(!attackerData.inPvpCombat())
-		    				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "petadmin remove " + attacker.getName());
-	    			}
-    			}
 			}
 		}
 
@@ -990,7 +964,7 @@ public class EntityEventHandler implements Listener
                                 if(attacker.hasPermission("griefprevention.ignoreclaims"))
                                     message += "  " + GriefPrevention.instance.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
                                 if(sendErrorMessagesToPlayers) GriefPrevention.sendMessage(attacker, TextMode.Err, message);
-                                PreventPvPEvent pvpEvent = new PreventPvPEvent(new Claim(subEvent.getEntity().getLocation(), subEvent.getEntity().getLocation(), null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false));
+                                PreventPvPEvent pvpEvent = new PreventPvPEvent(new Claim(subEvent.getEntity().getLocation(), subEvent.getEntity().getLocation(), null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false, new ArrayList<String>()));
                                 Bukkit.getPluginManager().callEvent(pvpEvent);
                                 if(!pvpEvent.isCancelled())
                                 {
@@ -1138,6 +1112,18 @@ public class EntityEventHandler implements Listener
         
         if(attacker != defender)
         {
+        	//warn people that they were placed in pvp combat
+            if(!(defenderData.inPvpCombat()) && defender != null)
+            {
+    			GriefPrevention.sendMessage(defender, TextMode.Warn, Messages.CombatTaggedDefender, attacker.getName(), 
+    					((Integer) GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
+            }
+    		if(!(attackerData.inPvpCombat()) && attacker != null)
+    		{
+    			GriefPrevention.sendMessage(attacker, TextMode.Warn, Messages.CombatTaggedAttacker, defender.getName(), 
+    					((Integer)GriefPrevention.instance.config_pvp_combatTimeoutSeconds).toString());
+    		}
+        	
             long now = Calendar.getInstance().getTimeInMillis();
             defenderData.lastPvpTimestamp = now;
             defenderData.lastPvpPlayer = attacker.getName();

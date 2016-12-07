@@ -1993,6 +1993,9 @@ class PlayerEventHandler implements Listener
 						
 						GriefPrevention.sendMessage(player, TextMode.Info, Messages.PlayerOfflineTime, String.valueOf(daysElapsed));
 						GriefPrevention.sendMessage(player, TextMode.Info, "Claim ID: " + claim.getID());
+						if(!claim.dibers.isEmpty()){
+							GriefPrevention.sendMessage(player, TextMode.Info, "First dibs: " + ChatColor.GREEN + claim.getFirstDiberName());
+						}
 						
 						//drop the data we just loaded, if the player isn't online
 						if(GriefPrevention.instance.getServer().getPlayer(claim.ownerID) == null)
@@ -2419,7 +2422,7 @@ class PlayerEventHandler implements Listener
 				GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ClaimStart);
 				
 				//show him where he's working
-				Visualization visualization = Visualization.FromClaim(new Claim(clickedBlock.getLocation(), clickedBlock.getLocation(), null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false), clickedBlock.getY(), VisualizationType.RestoreNature, player.getLocation());
+				Visualization visualization = Visualization.FromClaim(new Claim(clickedBlock.getLocation(), clickedBlock.getLocation(), null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false, new ArrayList<String>()), clickedBlock.getY(), VisualizationType.RestoreNature, player.getLocation());
 				Visualization.Apply(player, visualization);
 			}
 			

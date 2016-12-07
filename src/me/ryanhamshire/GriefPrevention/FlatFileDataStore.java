@@ -335,7 +335,7 @@ public class FlatFileDataStore extends DataStore
                         if(topLevelClaim == null)
                         {
                             //instantiate
-                            topLevelClaim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builderNames, containerNames, accessorNames, managerNames, claimID, isPvpAllowed);
+                            topLevelClaim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builderNames, containerNames, accessorNames, managerNames, claimID, isPvpAllowed, new ArrayList<String>());
                             
                             topLevelClaim.modifiedDate = new Date(files[i].lastModified());
                             this.addClaim(topLevelClaim, false);
@@ -344,7 +344,7 @@ public class FlatFileDataStore extends DataStore
                         //otherwise there's already a top level claim, so this must be a subdivision of that top level claim
                         else
                         {
-                            Claim subdivision = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, null, builderNames, containerNames, accessorNames, managerNames, null, isPvpAllowed);
+                            Claim subdivision = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, null, builderNames, containerNames, accessorNames, managerNames, null, isPvpAllowed, new ArrayList<String>());
                             
                             subdivision.modifiedDate = new Date(files[i].lastModified());
                             subdivision.parent = topLevelClaim;
@@ -515,8 +515,10 @@ public class FlatFileDataStore extends DataStore
         
         Boolean isPvpAllowed = yaml.getBoolean("isPvpAllowed");
         
+        List<String> dibs = yaml.getStringList("dibers");
+        
         //instantiate
-        claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builders, containers, accessors, managers, claimID, isPvpAllowed);
+        claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builders, containers, accessors, managers, claimID, isPvpAllowed, dibs);
         claim.modifiedDate = new Date(lastModifiedDate);
         claim.id = claimID;
         
@@ -542,12 +544,17 @@ public class FlatFileDataStore extends DataStore
         ArrayList<String> managers = new ArrayList<String>();
         claim.getPermissions(builders, containers, accessors, managers);
         
+        ArrayList<String> dibers = new ArrayList<String>();
+        for(UUID diber : claim.dibers){
+        	dibers.add(diber.toString());
+        }
+        
         yaml.set("Builders", builders);
         yaml.set("Containers", containers);
         yaml.set("Accessors", accessors);
         yaml.set("Managers", managers);
         yaml.set("isPvpAllowed", claim.isPvpAllowed);
-        yaml.set("dibers", claim.dibers);
+        yaml.set("dibers", dibers);
         
         Long parentID = -1L;
         if(claim.parent != null)

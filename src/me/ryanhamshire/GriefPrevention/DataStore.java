@@ -807,7 +807,7 @@ public abstract class DataStore
 			new ArrayList<String>(),
 			new ArrayList<String>(),
 			new ArrayList<String>(),
-			id, false);
+			id, false, new ArrayList<String>());
 		
 		newClaim.parent = parent;
 		
@@ -1269,7 +1269,7 @@ public abstract class DataStore
             Claim newClaim = new Claim(
                     new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx1, newy1, newz1), 
                     new Location(oldClaim.getLesserBoundaryCorner().getWorld(), newx2, newy2, newz2),
-                    null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false);
+                    null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false, new ArrayList<String>());
             
             //if the new claim is smaller
             if(!newClaim.contains(oldClaim.getLesserBoundaryCorner(), true, false) || !newClaim.contains(oldClaim.getGreaterBoundaryCorner(), true, false))

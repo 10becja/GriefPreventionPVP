@@ -314,7 +314,7 @@ public class DatabaseDataStore extends DataStore
 				List<String> managerNames = Arrays.asList(managersString.split(";"));
 				managerNames = this.convertNameListToUUIDList(managerNames);
 				
-				Claim claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builderNames, containerNames, accessorNames, managerNames, claimID, false);
+				Claim claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builderNames, containerNames, accessorNames, managerNames, claimID, false, new ArrayList<String>());
 				
 				if(removeClaim)
 				{

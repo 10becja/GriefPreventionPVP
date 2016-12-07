@@ -983,6 +983,10 @@ public class GriefPrevention extends JavaPlugin
 			return this.handleDibs(player);
 		}
 		
+		if(cmd.getName().equalsIgnoreCase("removedibs")){
+			return this.removeDibs(player, args.length > 0 ? args[0] : "");
+		}
+		
 		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
 		{
 			if(sender instanceof ConsoleCommandSender)
@@ -3607,6 +3611,47 @@ public class GriefPrevention extends JavaPlugin
 		return blocked;
 	}
 	
+	private boolean removeDibs(Player player, String toRemove){
+		UUID id;
+		if(toRemove == ""){
+			id = player.getUniqueId();
+		}
+		else{
+			if(!player.hasPermission("griefprevention.deleteclaims")){
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoPermissionForCommand);
+				return true;
+			}
+			OfflinePlayer target = resolvePlayerByName(toRemove);
+			if(target == null)
+			{
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.PlayerNotFound2);
+				return true;
+			}
+			else{
+				id = target.getUniqueId();
+			}
+		}
+		
+		Claim claim = dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+			return true;
+		}
+		
+		if(claim.dibers.contains(id)){
+			claim.dibers.remove(id);
+			dataStore.saveClaim(claim);
+			String tar = toRemove == "" ? "your" : toRemove + "'s";
+			GriefPrevention.sendMessage(player, TextMode.Success, "Removed " + tar + " dib on this claim");
+		}
+		else{
+			String tar = toRemove == "" ? "You have" : "This player has";
+			GriefPrevention.sendMessage(player, TextMode.Err, tar + " not called dibs on this claim");
+		}
+		
+		return true;
+	}
+	
 	private boolean handleDibs(Player player){
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
 		if(claim == null){
@@ -3622,6 +3667,7 @@ public class GriefPrevention extends JavaPlugin
 			if(lastLogin.getTime().after(pd.getLastLogin())){
 				claim.dibers.add(player.getUniqueId());
 				dataStore.saveClaim(claim);
+				GriefPrevention.sendMessage(player, TextMode.Success, "You've called dibs on this claim. Staff will be in touch with you on taking ownership if it.");
 			}
 			else{
 				GriefPrevention.sendMessage(player, TextMode.Err, "This claim isn't available for dibs yet");

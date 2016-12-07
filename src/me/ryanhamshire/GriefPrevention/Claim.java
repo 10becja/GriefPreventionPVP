@@ -192,7 +192,7 @@ public class Claim
 	}
 	
 	//main constructor.  note that only creating a claim instance does nothing - a claim must be added to the data store to be effective
-	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, List<String> builderIDs, List<String> containerIDs, List<String> accessorIDs, List<String> managerIDs, Long id, Boolean isPvpAllowed)
+	Claim(Location lesserBoundaryCorner, Location greaterBoundaryCorner, UUID ownerID, List<String> builderIDs, List<String> containerIDs, List<String> accessorIDs, List<String> managerIDs, Long id, Boolean isPvpAllowed, List<String> diberIDs)
 	{
 		//modification date
 		this.modifiedDate = Calendar.getInstance().getTime();
@@ -241,6 +241,19 @@ public class Claim
 				this.managers.add(managerID);
 			}
 		}
+		
+		for(String diberID : diberIDs)
+		{
+			if(diberID != null && !diberID.isEmpty())
+			{
+				try{
+					UUID diber = UUID.fromString(diberID);
+					this.dibers.add(diber);
+				}catch(IllegalArgumentException ex){
+					//do nothing, bad ID should be removed on save
+				}
+			}
+		}
 	}
 	
 	//measurements.  all measurements are in blocks
@@ -268,7 +281,7 @@ public class Claim
 		Claim claim = new Claim
 			(new Location(this.lesserBoundaryCorner.getWorld(), this.lesserBoundaryCorner.getBlockX() - howNear, this.lesserBoundaryCorner.getBlockY(), this.lesserBoundaryCorner.getBlockZ() - howNear),
 			 new Location(this.greaterBoundaryCorner.getWorld(), this.greaterBoundaryCorner.getBlockX() + howNear, this.greaterBoundaryCorner.getBlockY(), this.greaterBoundaryCorner.getBlockZ() + howNear),
-			 null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false);		
+			 null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false, new ArrayList<String>());		
 		return claim.contains(location, false, true);
 	}
 	
@@ -647,7 +660,13 @@ public class Claim
 			return GriefPrevention.instance.dataStore.getMessage(Messages.OwnerNameForAdminClaims);
 		
 		return GriefPrevention.lookupPlayerName(this.ownerID);
-	}	
+	}
+	
+	public String getFirstDiberName(){
+		if(!dibers.isEmpty())
+			return GriefPrevention.lookupPlayerName(dibers.get(0));
+		return "";
+	}
 	
 	//whether or not a location is in a claim
 	//ignoreHeight = true means location UNDER the claim will return TRUE
