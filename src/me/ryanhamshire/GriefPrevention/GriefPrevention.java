@@ -987,6 +987,10 @@ public class GriefPrevention extends JavaPlugin
 			return this.removeDibs(player, args.length > 0 ? args[0] : "");
 		}
 		
+		if(cmd.getName().equalsIgnoreCase("showDibs")){
+			return showDibs(player);
+		}
+		
 		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
 		{
 			if(sender instanceof ConsoleCommandSender)
@@ -3611,6 +3615,24 @@ public class GriefPrevention extends JavaPlugin
 		return blocked;
 	}
 	
+	private boolean showDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.dibers.isEmpty()){
+			GriefPrevention.sendMessage(player, TextMode.Warn, "Noone has called dibs on this claim");
+		}
+		else{
+			GriefPrevention.sendMessage(player, TextMode.Success, "The following players have called dibs on this claim:");
+			for(UUID id : claim.dibers){
+				GriefPrevention.sendMessage(player, TextMode.Success, lookupPlayerName(id));
+			}
+		}
+		
+		return true;
+	}
+	
 	private boolean removeDibs(Player player, String toRemove){
 		UUID id;
 		if(toRemove == ""){
@@ -3660,14 +3682,21 @@ public class GriefPrevention extends JavaPlugin
 		else if(claim.dibers.contains(player.getUniqueId())){
 			GriefPrevention.sendMessage(player, TextMode.Warn, "You have already placed dibs on this claim.");
 		}
+		else if(claim.isAdminClaim()){
+			GriefPrevention.sendMessage(player, TextMode.Err, "You cannot place dibs on admin claims.");
+		}
 		else{
 			PlayerData pd = this.dataStore.getPlayerData(claim.ownerID);
 			Calendar lastLogin = Calendar.getInstance();
 			lastLogin.add(Calendar.DATE, -config_claims_expirationDaysForDibs);
 			if(lastLogin.getTime().after(pd.getLastLogin())){
+				boolean isFirst = claim.dibers.isEmpty();
 				claim.dibers.add(player.getUniqueId());
 				dataStore.saveClaim(claim);
-				GriefPrevention.sendMessage(player, TextMode.Success, "You've called dibs on this claim. Staff will be in touch with you on taking ownership if it.");
+				if(isFirst)
+					GriefPrevention.sendMessage(player, TextMode.Success, "You've called dibs on this claim. Staff will be in touch with you on taking ownership if it.");
+				else
+					GriefPrevention.sendMessage(player, TextMode.Success, "You've been added to the queue for this claim. However, someone has called dibs first, so they have priority.");
 			}
 			else{
 				GriefPrevention.sendMessage(player, TextMode.Err, "This claim isn't available for dibs yet");

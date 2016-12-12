@@ -14,6 +14,10 @@ commands:
       description: Removes a players dibs from a claim.
       usage: /removedibs [player]
       permission: griefprevention.dibs
+   showDibs:
+      description: Shows the players who have called dibs on a claim, in order.
+      usage: /showDibs
+      permission: griefprevention.dibs
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
    claimprotect:
@@ -247,6 +251,9 @@ commands:
       usage: /ClaimBook <player>
       permission: griefprevention.claimbook
 permissions:
+    griefprevention.dibs:
+        description: Grants permission to place dibs on a claim.
+        default: true
     griefprevention.eject:
         description: Grants permission to eject players from claims.
         default: true
