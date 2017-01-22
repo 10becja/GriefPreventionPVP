@@ -78,6 +78,9 @@ public class GriefPrevention extends JavaPlugin
 	//Map of claims a player is not allowed in
 	private static List<String> blocked = new ArrayList<String>();
 	
+	//Set of players who have been ejected from a claim. Needed to bypass teleport prevention if in combat
+	public static HashSet<UUID> ejected = new HashSet<UUID>();
+	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
 	
@@ -3771,6 +3774,7 @@ public class GriefPrevention extends JavaPlugin
 				}
 				else
 				{
+					ejected.add(p.getUniqueId());
 					ejectPlayer(p);
 					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, claim.getOwnerName());
 					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());
@@ -3815,6 +3819,7 @@ public class GriefPrevention extends JavaPlugin
 														  || accessors.contains(p.getUniqueId().toString()) 
 														  || managers.contains(p.getUniqueId().toString())))
 				{
+					ejected.add(p.getUniqueId());
 					ejectPlayer(p);
 					GriefPrevention.sendMessage(p, TextMode.Warn, Messages.EjectedFromClaim, claim.getOwnerName());
 					GriefPrevention.sendMessage(player, TextMode.Success, Messages.EjectedSuccess, p.getName());

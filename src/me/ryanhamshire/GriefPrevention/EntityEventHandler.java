@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
+import me.ryanhamshire.GriefPrevention.events.CombatStartedEvent;
 import me.ryanhamshire.GriefPrevention.events.PreventPvPEvent;
 import me.ryanhamshire.GriefPrevention.events.ProtectDeathDropsEvent;
 
@@ -36,8 +37,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Animals;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Enderman;
@@ -1129,6 +1130,10 @@ public class EntityEventHandler implements Listener
             defenderData.lastPvpPlayer = attacker.getName();
             attackerData.lastPvpTimestamp = now;
             attackerData.lastPvpPlayer = defender.getName();
+            
+            CombatStartedEvent startCombat = new CombatStartedEvent(attacker, defender);
+            Bukkit.getPluginManager().callEvent(startCombat);
+            
         }
     }
 	
