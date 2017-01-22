@@ -3327,7 +3327,7 @@ public class GriefPrevention extends JavaPlugin
 	}
 	
 	//sends a color-coded message to a player
-	static void sendMessage(Player player, ChatColor color, Messages messageID, String... args)
+	public static void sendMessage(Player player, ChatColor color, Messages messageID, String... args)
 	{
 		sendMessage(player, color, messageID, 0, args);
 	}
@@ -3340,7 +3340,7 @@ public class GriefPrevention extends JavaPlugin
 	}
 	
 	//sends a color-coded message to a player
-	static void sendMessage(Player player, ChatColor color, String message)
+	public static void sendMessage(Player player, ChatColor color, String message)
 	{
 		if(message == null || message.length() == 0) return;
 		
