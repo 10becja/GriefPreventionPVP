@@ -275,14 +275,18 @@ public class Claim
 		return this.greaterBoundaryCorner.getBlockZ() - this.lesserBoundaryCorner.getBlockZ() + 1;		
 	}
 	
+	public boolean isNear(Location location, int howNear){
+		return isNear(location, howNear, false, true);
+	}
+	
 	//distance check for claims, distance in this case is a band around the outside of the claim rather then euclidean distance
-	public boolean isNear(Location location, int howNear)
+	public boolean isNear(Location location, int howNear, boolean ignoreHeight, boolean includeSubclaims)
 	{
 		Claim claim = new Claim
 			(new Location(this.lesserBoundaryCorner.getWorld(), this.lesserBoundaryCorner.getBlockX() - howNear, this.lesserBoundaryCorner.getBlockY(), this.lesserBoundaryCorner.getBlockZ() - howNear),
 			 new Location(this.greaterBoundaryCorner.getWorld(), this.greaterBoundaryCorner.getBlockX() + howNear, this.greaterBoundaryCorner.getBlockY(), this.greaterBoundaryCorner.getBlockZ() + howNear),
 			 null, new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), null, false, new ArrayList<String>());		
-		return claim.contains(location, false, true);
+		return claim.contains(location, ignoreHeight, includeSubclaims);
 	}
 	
 	//permissions.  note administrative "public" claims have different rules than other claims
@@ -398,6 +402,29 @@ public class Claim
 				reason += "  " + GriefPrevention.instance.dataStore.getMessage(Messages.IgnoreClaimsAdvertisement);
 		
 		return reason;
+	}
+	
+	public boolean hasTrust(Player player){
+		if(player == null) 
+			return false;
+				
+		if(this.isAdminClaim() && player.hasPermission("griefprevention.adminclaims")) 
+			return true;
+		
+		if(player.getUniqueId().equals(this.ownerID) || GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId()).ignoreClaims) 
+			return true;
+		
+		if(this.hasExplicitPermission(player, ClaimPermission.Build) || this.hasExplicitPermission(player, ClaimPermission.Inventory)) 
+			return true;
+		
+		ClaimPermission permissionLevel = this.playerIDToClaimPermissionMap.get("public");
+		if(ClaimPermission.Build == permissionLevel) return true;
+		
+		//subdivision permission inheritance
+		if(this.parent != null)
+			return this.parent.hasTrust(player);
+		
+		return false;
 	}
 	
 	private boolean hasExplicitPermission(Player player, ClaimPermission level)

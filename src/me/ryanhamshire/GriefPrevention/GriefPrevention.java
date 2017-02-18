@@ -51,6 +51,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
@@ -70,6 +71,12 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.BlockIterator;
 
+import com.sk89q.worldguard.bukkit.WGBukkit;
+import com.sk89q.worldguard.protection.ApplicableRegionSet;
+import com.sk89q.worldguard.protection.flags.DefaultFlag;
+import com.sk89q.worldguard.protection.flags.StateFlag.State;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+
 public class GriefPrevention extends JavaPlugin
 {
 	//list of claims that have been toggled recently
@@ -80,6 +87,11 @@ public class GriefPrevention extends JavaPlugin
 	
 	//Set of players who have been ejected from a claim. Needed to bypass teleport prevention if in combat
 	public static HashSet<UUID> ejected = new HashSet<UUID>();
+	
+	//Set of defender+harasser+claimID and time added. Used for /defendAgainst
+	public static HashMap<String, Long> harassers = new HashMap<String, Long>();
+	//Set of people who have used /defendAgainst recently
+	public static HashMap<UUID, Long> usedDefendCommand = new HashMap<UUID, Long>();
 	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
@@ -128,6 +140,9 @@ public class GriefPrevention extends JavaPlugin
 	public int config_claims_expirationDaysForDibs;					//How many days before others can place dibs on a claim
 	public int config_claims_expirationExemptionTotalBlocks;        //total claim blocks amount which will exempt a player from claim expiration
 	public int config_claims_expirationExemptionBonusBlocks;        //bonus claim blocks amount which will exempt a player from claim expiration
+	public int config_claims_defense_minimumSizeForDefense;			//the minimum size a claim must be for a player to use /defenseAgainst
+	public int config_claims_defense_delayBetweenCommandUsage;		//how often long a player must wait until they use the /defendAgainst command again
+	public int config_claims_defense_warningTime;					//how long a person has to get out of an area before they are killed
 	
 	public int config_claims_automaticClaimsForNewPlayersRadius;	//how big automatic new player claims (when they place a chest) should be.  0 to disable
 	public int config_claims_claimsExtendIntoGroundDistance;		//how far below the shoveled block a new claim will reach
@@ -563,6 +578,9 @@ public class GriefPrevention extends JavaPlugin
         this.config_claims_minWidth = config.getInt("GriefPrevention.Claims.MinimumWidth", 5);
         this.config_claims_minArea = config.getInt("GriefPrevention.Claims.MinimumArea", 100);
         this.config_claims_maxDepth = config.getInt("GriefPrevention.Claims.MaximumDepth", 0);
+        this.config_claims_defense_minimumSizeForDefense = config.getInt("GriefPrevention.Claims.Defense.MinimumClaimSize", 500);
+        this.config_claims_defense_delayBetweenCommandUsage = config.getInt("GriefPrevention.Claims.Defense.DelayBetweenCommands", 10);
+        this.config_claims_defense_warningTime = config.getInt("GriefPrevention.Claims.Defense.WarningTime", 30);
         this.config_claims_chestClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.ChestClaimDays", 7);
         this.config_claims_unusedClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.UnusedClaimDays", 14);
         this.config_claims_expirationDays = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", 60);
@@ -804,6 +822,9 @@ public class GriefPrevention extends JavaPlugin
         outConfig.set("GriefPrevention.Claims.MinimumWidth", this.config_claims_minWidth);
         outConfig.set("GriefPrevention.Claims.MinimumArea", this.config_claims_minArea);
         outConfig.set("GriefPrevention.Claims.MaximumDepth", this.config_claims_maxDepth);
+        outConfig.set("GriefPrevention.Claims.Defense.MinimumClaimSize", this.config_claims_defense_minimumSizeForDefense);
+        outConfig.set("GriefPrevention.Claims.Defense.DelayBetweenCommands", this.config_claims_defense_delayBetweenCommandUsage);
+        outConfig.set("GriefPrevention.Claims.Defense.WarningTime", this.config_claims_defense_warningTime);
         outConfig.set("GriefPrevention.Claims.InvestigationTool", this.config_claims_investigationTool.name());
         outConfig.set("GriefPrevention.Claims.ModificationTool", this.config_claims_modificationTool.name());
         outConfig.set("GriefPrevention.Claims.Expiration.ChestClaimDays", this.config_claims_chestClaimExpirationDays);
@@ -980,6 +1001,10 @@ public class GriefPrevention extends JavaPlugin
 		if (sender instanceof Player) 
 		{
 			player = (Player) sender;
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("defendAgainst")){
+			return handleDefense(player, args.length > 0 ? args[0] : "");
 		}
 		
 		if(cmd.getName().equalsIgnoreCase("dibs")){
@@ -3618,6 +3643,123 @@ public class GriefPrevention extends JavaPlugin
 		return blocked;
 	}
 	
+	private boolean handleDefense(Player player, String input){
+		
+		if(!player.hasPermission("griefprevention.defendClaim")){
+			sendMessage(player, TextMode.Err, Messages.NoPermissionForCommand);
+			return true;
+		}
+		Long lastUsed = usedDefendCommand.get(player.getUniqueId());
+		if(lastUsed != null){
+			if(System.currentTimeMillis() - lastUsed < config_claims_defense_delayBetweenCommandUsage * 1000){
+				sendMessage(player, TextMode.Warn, "Herobrine is tired after defending your claim. "
+						+ "He must rest before being summoned again");
+				return true;
+			}
+		}
+		
+		if(input.isEmpty())
+			return false;
+		
+		Player target = Bukkit.getPlayer(input);
+		if(target == null || target.hasPermission("griefprevention.staff")){
+			sendMessage(player, TextMode.Err, "Herobrine does not know this player.");
+			return true;
+		}
+
+		Claim claim = dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			sendMessage(player, TextMode.Err, "You cannot summon Herobrine to defend unclaimed land!");
+			return true;
+		}		
+		if(!claim.hasTrust(player))
+		{
+			GriefPrevention.sendMessage(player, TextMode.Err, "You cannot summon Herobrine to defend a claim you are not trusted in!");
+			return true;
+		}
+		
+		if(claim.getArea() < config_claims_defense_minimumSizeForDefense){
+			sendMessage(player, TextMode.Warn, "Herobrine is not impressed with your puny claim and will not defend it. "
+					+ "Your claim must cover at least " + config_claims_defense_minimumSizeForDefense + " blocks to summon him!");
+			return true;
+		}		
+		
+		Location lesser = claim.getLesserBoundaryCorner().subtract(100, 0, 100);
+		Location greater = claim.getGreaterBoundaryCorner().add(100, 0, 100);
+		World targetWorld = target.getWorld();
+		Location targetLoc = target.getLocation();
+		
+		Claim overlay = new Claim(lesser, greater, null,
+				new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(), new ArrayList<String>(),
+				null, false, new ArrayList<String>());
+		
+		if(overlay.contains(targetLoc, true, false)){
+			//make sure they aren't too close to an admin claim
+			for(Claim ac : dataStore.getClaims()){
+				if(ac.isAdminClaim()){
+					if(overlay.overlaps(ac)){
+						sendMessage(player, TextMode.Warn, "This claim is too close to a public area! Herobrine will not come here!");
+						return true;
+					}
+				}
+			}
+			
+			//check if they target is in a region that doesn't allow PVP. If so, that means they are in a public area
+			ApplicableRegionSet set = WGBukkit.getRegionManager(targetWorld).getApplicableRegions(targetLoc);
+			for(ProtectedRegion region : set.getRegions()){
+				if(region.getFlag(DefaultFlag.PVP) == State.DENY){
+					sendMessage(player, TextMode.Warn, "This claim is too close to a public area! Herobrine will not come here!");
+					return true;
+				}
+			}
+			
+			//At this point, we know the target is in the area, and the area is not public
+			Claim targetClaim = dataStore.getClaimAt(targetLoc, true, null);
+			//don't kill if they are in their own claim and the claim is big enough
+			if(targetClaim != null && targetClaim.hasTrust(target) && targetClaim.getArea() >= config_claims_defense_minimumSizeForDefense){
+				sendMessage(player, TextMode.Warn, "That player is in their own base. Herobrine doesn't like attacking people in their home...");
+				return true;
+			}
+			else{ //everything is valid, now warn or kill that player.
+				usedDefendCommand.put(player.getUniqueId(), System.currentTimeMillis()); //make sure they don't spam the command.
+				String key = buildKeyForDefense(player, target, claim);
+				Long warnDate = harassers.get(key);
+				//if the target hasn't been warned yet, or they were warned more than an hour ago
+				if(warnDate == null || System.currentTimeMillis() - warnDate > 3600 * 1000){
+					harassers.put(key, System.currentTimeMillis());
+					sendMessage(player, TextMode.Success, "Herobrine has heard your summons and has warned the player they have "
+							+ config_claims_defense_warningTime + " seconds to leave this area.");
+					sendMessage(target, TextMode.Warn, player.getName() + " has summoned Herobrine to rid you of their land. You have "
+							+ config_claims_defense_warningTime + " seconds to leave this area! If you return before the hour is up, "
+							+ "Herobrine will devour your soul.");
+				}
+				//the warning period hasn't ended yet
+				else if(System.currentTimeMillis() - warnDate <= config_claims_defense_warningTime * 1000){
+					sendMessage(player, TextMode.Warn, "Be patient! Their chance to leave is not up yet.");
+				}
+				//KILL THEM
+				else{
+					harassers.put(key, System.currentTimeMillis());
+					sendMessage(player, TextMode.Success, target.getName() + " has suffered the wrath of Herobrine and has perished.");
+					sendMessage(target, TextMode.Err, "You failed to heed Herobrine's warning to leave "
+							+ player.getName() + "'s land and will now suffer his wrath!");
+					PlayerInventory inv = target.getInventory();
+					inv.clear();
+					inv.setArmorContents(new ItemStack[4]);
+					target.updateInventory();
+					targetWorld.playSound(targetLoc, Sound.ENTITY_WITHER_DEATH, 2, 0);
+					target.setHealth(0);
+				}
+			}
+		}
+		else{ //they aren't in the overlay claim
+			sendMessage(player, TextMode.Warn, "That player isn't close enough to worry about. Don't waste Herobrine's time.");
+			return true;
+		}
+		
+		return true;
+	}
+	
 	private boolean showDibs(Player player){
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
 		if(claim == null){
@@ -3757,7 +3899,7 @@ public class GriefPrevention extends JavaPlugin
 			//if the target is not in that claim, or a mod, tell player that they aren't in it
 			//this prevent players from being ejected from random claims
 			Claim c = this.dataStore.getClaimAt(p.getLocation(), true, claim);
-			if(p.hasPermission("griefprevention.noeject") || c == null || !c.equals(claim))
+			if(p.hasPermission("griefprevention.staff") || c == null || !c.equals(claim))
 			{
 				GriefPrevention.sendMessage(player, TextMode.Warn, p.getName()+" is not in this claim");
 				return;
@@ -3813,7 +3955,7 @@ public class GriefPrevention extends JavaPlugin
 			if( c != null && c.equals(claim)) //if the player is in the claim
 			{
 				//if none of the permissions are there. Also if not the owner, or has noeject permissions
-				if(!(p.getName().equals(c.getOwnerName()) || p.hasPermission("griefprevention.noeject")
+				if(!(p.getName().equals(c.getOwnerName()) || p.hasPermission("griefprevention.staff")
 														  || builders.contains(p.getUniqueId().toString()) 
 														  || containers.contains(p.getUniqueId().toString()) 
 														  || accessors.contains(p.getUniqueId().toString()) 
@@ -3913,6 +4055,10 @@ public class GriefPrevention extends JavaPlugin
 			}
 		}
 		return true;
+	}
+	
+	private String buildKeyForDefense(Player player, Player target, Claim claim){
+		return player.getUniqueId() + "|" + target.getUniqueId() + "|" + claim.getID(); 
 	}
 	
 	private boolean removeOldClaims()

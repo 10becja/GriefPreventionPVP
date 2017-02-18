@@ -6,6 +6,10 @@ dev-url: http://dev.bukkit.org/server-mods/grief-prevention
 loadbefore: [TheUnderground]
 version: 15.2.2.1j
 commands:
+   defendAgainst:
+      description: Summons Herobrine to defend your claim.
+      usage: /defendAgainst [player]
+      aliases: da
    dibs:
       description: Allows players to place dibs on expired claims.
       usage: /dibs
