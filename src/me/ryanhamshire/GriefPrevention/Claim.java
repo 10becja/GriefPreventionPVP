@@ -276,6 +276,8 @@ public class Claim
 	}
 	
 	public boolean isEligibleForDibs(){
+		if(this.isAdminClaim() || this.parent != null) //admin claims and subclaims can't be /dibbed
+			return false;
 		PlayerData pd = GriefPrevention.instance.dataStore.getPlayerData(this.ownerID);
 		Calendar lastLogin = Calendar.getInstance();
 		lastLogin.add(Calendar.DATE, -GriefPrevention.instance.config_claims_expirationDaysForDibs);
@@ -680,16 +682,28 @@ public class Claim
 		
 		getPermissions(_builders, _containers, _accessors, _managers);
 		for(String id : _builders){
-			builders.add(GriefPrevention.lookupPlayerName(id));
+			if(id.equalsIgnoreCase("public"))
+				builders.add(id);
+			else
+				builders.add(GriefPrevention.lookupPlayerName(id));
 		}
 		for(String id : _containers){
-			containers.add(GriefPrevention.lookupPlayerName(id));
+			if(id.equalsIgnoreCase("public"))
+				containers.add(id);
+			else
+				containers.add(GriefPrevention.lookupPlayerName(id));
 		}
 		for(String id : _accessors){
-			accessors.add(GriefPrevention.lookupPlayerName(id));
+			if(id.equalsIgnoreCase("public"))
+				accessors.add(id);
+			else
+				accessors.add(GriefPrevention.lookupPlayerName(id));
 		}
 		for(String id : _managers){
-			managers.add(GriefPrevention.lookupPlayerName(id));
+			if(id.equalsIgnoreCase("public"))
+				managers.add(id);
+			else
+				managers.add(GriefPrevention.lookupPlayerName(id));
 		}
 	}
 	
