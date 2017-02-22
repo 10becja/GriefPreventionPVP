@@ -275,6 +275,13 @@ public class Claim
 		return this.greaterBoundaryCorner.getBlockZ() - this.lesserBoundaryCorner.getBlockZ() + 1;		
 	}
 	
+	public boolean isEligibleForDibs(){
+		PlayerData pd = GriefPrevention.instance.dataStore.getPlayerData(this.ownerID);
+		Calendar lastLogin = Calendar.getInstance();
+		lastLogin.add(Calendar.DATE, -GriefPrevention.instance.config_claims_expirationDaysForDibs);
+		return lastLogin.getTime().after(pd.getLastLogin());
+	}
+	
 	public boolean isNear(Location location, int howNear){
 		return isNear(location, howNear, false, true);
 	}
@@ -661,6 +668,28 @@ public class Claim
 		for(int i = 0; i < this.managers.size(); i++)
 		{
 			managers.add(this.managers.get(i));
+		}
+	}
+	
+	public void getFriendlyPermissions(ArrayList<String> builders, ArrayList<String> containers, ArrayList<String> accessors, ArrayList<String> managers)
+	{
+		ArrayList<String> _builders = new ArrayList<String>(),
+				_containers  = new ArrayList<String>(),
+				_accessors  = new ArrayList<String>(),
+				_managers = new ArrayList<String>();
+		
+		getPermissions(_builders, _containers, _accessors, _managers);
+		for(String id : _builders){
+			builders.add(GriefPrevention.lookupPlayerName(id));
+		}
+		for(String id : _containers){
+			containers.add(GriefPrevention.lookupPlayerName(id));
+		}
+		for(String id : _accessors){
+			accessors.add(GriefPrevention.lookupPlayerName(id));
+		}
+		for(String id : _managers){
+			managers.add(GriefPrevention.lookupPlayerName(id));
 		}
 	}
 	

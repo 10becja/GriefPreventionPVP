@@ -3831,10 +3831,7 @@ public class GriefPrevention extends JavaPlugin
 			GriefPrevention.sendMessage(player, TextMode.Err, "You cannot place dibs on admin claims.");
 		}
 		else{
-			PlayerData pd = this.dataStore.getPlayerData(claim.ownerID);
-			Calendar lastLogin = Calendar.getInstance();
-			lastLogin.add(Calendar.DATE, -config_claims_expirationDaysForDibs);
-			if(lastLogin.getTime().after(pd.getLastLogin())){
+			if(claim.isEligibleForDibs()){
 				boolean isFirst = claim.dibers.isEmpty();
 				claim.dibers.add(player.getUniqueId());
 				dataStore.saveClaim(claim);
