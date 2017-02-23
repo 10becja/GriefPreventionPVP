@@ -71,6 +71,10 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.BlockIterator;
 
+import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.bukkit.selections.CuboidSelection;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.bukkit.WGBukkit;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.flags.DefaultFlag;
@@ -92,6 +96,8 @@ public class GriefPrevention extends JavaPlugin
 	public static HashMap<String, Long> harassers = new HashMap<String, Long>();
 	//Set of people who have used /defendAgainst recently
 	public static HashMap<UUID, Long> usedDefendCommand = new HashMap<UUID, Long>();
+	
+	public static HashMap<UUID, Long> removalCommandUsers = new HashMap<UUID, Long>();
 	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
@@ -3777,13 +3783,59 @@ public class GriefPrevention extends JavaPlugin
 			GriefPrevention.sendMessage(player, TextMode.Warn, "No one has called dibs on this claim");
 		}
 		else{
-			
+			claim.approvedDiber = claim.dibers.get(0);
+			dataStore.saveClaim(claim);
+			GriefPrevention.sendMessage(player, TextMode.Success, "You have approved this claim for removal by " + lookupPlayerName(claim.approvedDiber));
 		}
 		
 		return true;
 	}
 	
 	private boolean completeDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.approvedDiber != player.getUniqueId()){
+			GriefPrevention.sendMessage(player, TextMode.Err, "You are not approved to remove this claim!");
+		}
+		else{
+			Long time = removalCommandUsers.get(player.getUniqueId());
+			//They haven't run the command, or they ran it more than 10 seconds ago
+			if(time == null || (System.currentTimeMillis() - time > 10000)){
+				String warning = ChatColor.RED + "======" + ChatColor.GOLD + "WARNING! Warning! Warning!" + ChatColor.RED + "======";
+				player.sendMessage(warning);
+				player.sendMessage(warning);
+				player.sendMessage(warning);
+				player.sendMessage("");
+				GriefPrevention.sendMessage(player, TextMode.Warn, "Using this command will remove the claim and EVERYTHING inside it. "
+						+ "If you are absolutely sure you want to do this, run the command again. YOU HAVE BEEN WARNED!!!");
+				player.sendMessage("");
+				removalCommandUsers.put(player.getUniqueId(), System.currentTimeMillis());
+			}
+			else{
+				removalCommandUsers.remove(player.getUniqueId());
+				Location greater = claim.getGreaterBoundaryCorner();
+				greater.setY(255);
+				Location lesser = claim.getLesserBoundaryCorner();
+				lesser.setY(0);
+				
+				CuboidSelection sel = new CuboidSelection(greater.getWorld(), greater, lesser);
+				try{
+					Region reg = sel.getRegionSelector().getRegion();
+					EditSession ses = WorldEdit.getInstance().getEditSessionFactory().getEditSession(reg.getWorld(), -1);
+					reg.getWorld().regenerate(reg, ses);
+				}catch(Exception ex){
+					GriefPrevention.sendMessage(player, TextMode.Err, "Could not remove claim. Please contact a staff member!");
+					return true;
+				}
+				
+				dataStore.deleteClaim(claim, true, true);
+				GriefPrevention.sendMessage(player, TextMode.Success, "The claim has been removed and is now available to build on");
+				
+			}
+		}
+		
 		return true;
 	}
 	
