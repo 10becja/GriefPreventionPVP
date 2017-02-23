@@ -1019,6 +1019,14 @@ public class GriefPrevention extends JavaPlugin
 			return showDibs(player);
 		}
 		
+		if(cmd.getName().equalsIgnoreCase("approveDibs")){
+			return approveDibs(player);
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("completeDibs")){
+			return completeDibs(player);
+		}
+		
 		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
 		{
 			if(sender instanceof ConsoleCommandSender)
@@ -3760,13 +3768,32 @@ public class GriefPrevention extends JavaPlugin
 		return true;
 	}
 	
+	private boolean approveDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.dibers.isEmpty()){
+			GriefPrevention.sendMessage(player, TextMode.Warn, "No one has called dibs on this claim");
+		}
+		else{
+			
+		}
+		
+		return true;
+	}
+	
+	private boolean completeDibs(Player player){
+		return true;
+	}
+	
 	private boolean showDibs(Player player){
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
 		if(claim == null){
 			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
 		}
 		else if(claim.dibers.isEmpty()){
-			GriefPrevention.sendMessage(player, TextMode.Warn, "Noone has called dibs on this claim");
+			GriefPrevention.sendMessage(player, TextMode.Warn, "No one has called dibs on this claim");
 		}
 		else{
 			GriefPrevention.sendMessage(player, TextMode.Success, "The following players have called dibs on this claim:");

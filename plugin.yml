@@ -22,6 +22,14 @@ commands:
       description: Shows the players who have called dibs on a claim, in order.
       usage: /showDibs
       permission: griefprevention.dibs
+   approveDibs:
+      description: Used by moderators to approve someone for removing a dibbed claim.
+      usage: /approveDibs
+      permission: griefprevention.deleteclaims
+   completeDibs:
+      description: After a claim has been approved, this will unclaim and configurably regenerate the land
+      usage: /completeDibs
+      permission: griefPrevention.dibs
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
    claimprotect:

@@ -516,11 +516,22 @@ public class FlatFileDataStore extends DataStore
         Boolean isPvpAllowed = yaml.getBoolean("isPvpAllowed");
         
         List<String> dibs = yaml.getStringList("dibers");
+        String ad = yaml.getString("Approved Diber");
+        UUID approvedDiber = null;
+        if(!ad.isEmpty()){
+        	try{
+        		approvedDiber = UUID.fromString(ad);
+        	}
+        	catch(Exception ex){
+        		GriefPrevention.AddLogEntry("Error - this is not a valid UUID: " + ad + ". Removing approved diber for " + claimID);
+        	}
+        }
         
         //instantiate
         claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builders, containers, accessors, managers, claimID, isPvpAllowed, dibs);
         claim.modifiedDate = new Date(lastModifiedDate);
         claim.id = claimID;
+        claim.approvedDiber = approvedDiber;
         
         return claim;
 	}
@@ -555,6 +566,7 @@ public class FlatFileDataStore extends DataStore
         yaml.set("Managers", managers);
         yaml.set("isPvpAllowed", claim.isPvpAllowed);
         yaml.set("dibers", dibers);
+        yaml.set("Approved Diber", claim.approvedDiber);
         
         Long parentID = -1L;
         if(claim.parent != null)

@@ -55,6 +55,7 @@ public class Claim
 	
 	//people who have placed dibs on this claim
 	public ArrayList<UUID> dibers = new ArrayList<UUID>();
+	public UUID approvedDiber;
 	
 	//whether or not this claim is in the data store
 	//if a claim instance isn't in the data store, it isn't "active" - players can't interract with it 
