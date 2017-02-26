@@ -30,6 +30,17 @@ commands:
       description: After a claim has been approved, this will unclaim and configurably regenerate the land
       usage: /completeDibs
       permission: griefPrevention.dibs
+   showPendingApprovals:
+      description: Shows all claims pending approval
+      usage: /showPendingApprovals
+      permission: griefPrevention.deleteclaims
+   showApprovals:
+      description: Shows claims you are approved to remove
+      usage: /showApprovals
+      permission: griefPrevention.dibs
+   tptoclaim:
+      description: After a claim has been approved, this will unclaim and configurably regenerate the land
+      usage: /tptoclaim
    removeOldClaims:
       description: Command to manually remove all expired claims. Can only be run from console
    claimprotect:
