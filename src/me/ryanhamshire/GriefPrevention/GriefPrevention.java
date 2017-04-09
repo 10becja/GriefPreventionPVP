@@ -1043,8 +1043,16 @@ public class GriefPrevention extends JavaPlugin
 		if(cmd.getName().equalsIgnoreCase("showPendingApprovals")){
 			if(claimsPendingApproval.isEmpty())
 				GriefPrevention.sendMessage(player, TextMode.Success, "There are no claims pending approval");
+			List<Claim> toRemove = new ArrayList<Claim>();
 			for(Claim c : claimsPendingApproval.values()){
+				if(c.dibers.isEmpty()){
+					toRemove.add(c);
+					continue;
+				}
 				listPendingApprovals(c, lookupPlayerName(c.dibers.get(0)), player);
+			}
+			for(Claim c : toRemove){
+				claimsPendingApproval.remove(c.id);
 			}
 			return true;
 		}
@@ -3853,7 +3861,7 @@ public class GriefPrevention extends JavaPlugin
 		if(claim == null){
 			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
 		}
-		else if(claim.approvedDiber != player.getUniqueId()){
+		else if(claim.approvedDiber == null || !claim.approvedDiber.equals(player.getUniqueId())){
 			GriefPrevention.sendMessage(player, TextMode.Err, "You are not approved to remove this claim!");
 		}
 		else{
@@ -3950,11 +3958,15 @@ public class GriefPrevention extends JavaPlugin
 		
 		if(claim.dibers.contains(id)){
 			claim.dibers.remove(id);
-			if(claim.approvedDiber == id){
+			if(claim.approvedDiber != null && claim.approvedDiber.equals(id)){
 				claim.approvedDiber = null; //remove their approval if removing from dibs list
 				claim.approvalDate = 0L;
 			}
 			dataStore.saveClaim(claim);
+			
+			if(claim.dibers.isEmpty() && claimsPendingApproval.containsKey(claim.id)){
+				claimsPendingApproval.remove(claim.id);
+			}
 			
 			//there are more dibers, but no one has been approved
 			if(!claim.dibers.isEmpty() && claim.approvedDiber == null && !claimsPendingApproval.containsKey(claim.id)){

@@ -527,7 +527,7 @@ public class FlatFileDataStore extends DataStore
         		GriefPrevention.AddLogEntry("Error - this is not a valid UUID: " + ad + ". Removing approved diber for " + claimID);
         	}
         }
-        
+                
         //instantiate
         claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builders, containers, accessors, managers, claimID, isPvpAllowed, dibs);
         claim.modifiedDate = new Date(lastModifiedDate);
@@ -541,7 +541,7 @@ public class FlatFileDataStore extends DataStore
         	alreadyAdded = true;
         }
         //bad data?
-        else if(!claim.dibers.contains(claim.approvedDiber)){
+        else if(!claim.dibers.contains(approvedDiber)){
         	claim.approvedDiber = null;
         }
         else{
