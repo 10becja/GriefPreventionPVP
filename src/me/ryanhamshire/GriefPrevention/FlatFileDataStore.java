@@ -637,7 +637,10 @@ public class FlatFileDataStore extends DataStore
 		if(claimFile.exists() && !claimFile.delete())
 		{
 			GriefPrevention.AddLogEntry("Error: Unable to delete claim file \"" + claimFile.getAbsolutePath() + "\".");
-		}		
+		}
+		else{
+			GriefPrevention.claimsPendingApproval.remove(claim.id);
+		}
 	}
 	
 	@Override
