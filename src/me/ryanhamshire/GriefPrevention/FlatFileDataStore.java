@@ -516,11 +516,44 @@ public class FlatFileDataStore extends DataStore
         Boolean isPvpAllowed = yaml.getBoolean("isPvpAllowed");
         
         List<String> dibs = yaml.getStringList("dibers");
-        
+        String ad = yaml.getString("Approved Diber");
+        long approvalDate = yaml.getLong("Approval Date", 0L);
+        UUID approvedDiber = null;
+        if(ad != null && !ad.isEmpty()){
+        	try{
+        		approvedDiber = UUID.fromString(ad);
+        	}
+        	catch(Exception ex){
+        		GriefPrevention.AddLogEntry("Error - this is not a valid UUID: " + ad + ". Removing approved diber for " + claimID);
+        	}
+        }
+                
         //instantiate
         claim = new Claim(lesserBoundaryCorner, greaterBoundaryCorner, ownerID, builders, containers, accessors, managers, claimID, isPvpAllowed, dibs);
         claim.modifiedDate = new Date(lastModifiedDate);
         claim.id = claimID;
+        claim.approvalDate = approvalDate;
+        
+        //if it's been config days since they were approved, remove them from the dibbers list
+        boolean alreadyAdded = false;
+        if(claim.isApprovalExpired()){
+        	claim.handleExpiredApproval(false);
+        	alreadyAdded = true;
+        }
+        //bad data?
+        else if(!claim.dibers.contains(approvedDiber)){
+        	claim.approvedDiber = null;
+        }
+        else{
+        	claim.approvedDiber = approvedDiber;
+        }
+        
+        if(claim.approvedDiber == null && !claim.dibers.isEmpty() && !alreadyAdded){
+        	GriefPrevention.claimsPendingApproval.put(claim.id, claim);
+        }
+        if(claim.approvedDiber != null){
+        	GriefPrevention.mapApprovedPlayer(claim);
+        }
         
         return claim;
 	}
@@ -555,6 +588,8 @@ public class FlatFileDataStore extends DataStore
         yaml.set("Managers", managers);
         yaml.set("isPvpAllowed", claim.isPvpAllowed);
         yaml.set("dibers", dibers);
+        yaml.set("Approved Diber", claim.approvedDiber == null ? null : claim.approvedDiber.toString());
+        yaml.set("Approval Date", claim.approvalDate);
         
         Long parentID = -1L;
         if(claim.parent != null)
@@ -602,7 +637,10 @@ public class FlatFileDataStore extends DataStore
 		if(claimFile.exists() && !claimFile.delete())
 		{
 			GriefPrevention.AddLogEntry("Error: Unable to delete claim file \"" + claimFile.getAbsolutePath() + "\".");
-		}		
+		}
+		else{
+			GriefPrevention.claimsPendingApproval.remove(claim.id);
+		}
 	}
 	
 	@Override

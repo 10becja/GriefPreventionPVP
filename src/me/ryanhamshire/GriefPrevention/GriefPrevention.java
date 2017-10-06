@@ -71,6 +71,10 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.BlockIterator;
 
+import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.bukkit.selections.CuboidSelection;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldguard.bukkit.WGBukkit;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.flags.DefaultFlag;
@@ -92,6 +96,12 @@ public class GriefPrevention extends JavaPlugin
 	public static HashMap<String, Long> harassers = new HashMap<String, Long>();
 	//Set of people who have used /defendAgainst recently
 	public static HashMap<UUID, Long> usedDefendCommand = new HashMap<UUID, Long>();
+	
+	public static HashMap<UUID, Long> removalCommandUsers = new HashMap<UUID, Long>();
+	
+	public static HashMap<Long, Claim> claimsPendingApproval = new HashMap<Long, Claim>();
+	public static HashMap<UUID, List<Claim>> approvedClaimsMap = new HashMap<UUID, List<Claim>>();
+	public static HashMap<String, Location> playersPendingTpToClaim = new HashMap<String, Location>();
 	
 	//for convenience, a reference to the instance of this plugin
 	public static GriefPrevention instance;
@@ -138,6 +148,7 @@ public class GriefPrevention extends JavaPlugin
 	public int config_claims_maxDepth;								//limit on how deep claims can go
 	public int config_claims_expirationDays;						//how many days of inactivity before a player loses his claims
 	public int config_claims_expirationDaysForDibs;					//How many days before others can place dibs on a claim
+	public int config_claims_daysUntilApprovalExpires;				//How many days after a claim is approved before the dibber is removed
 	public int config_claims_expirationExemptionTotalBlocks;        //total claim blocks amount which will exempt a player from claim expiration
 	public int config_claims_expirationExemptionBonusBlocks;        //bonus claim blocks amount which will exempt a player from claim expiration
 	public int config_claims_defense_minimumSizeForDefense;			//the minimum size a claim must be for a player to use /defenseAgainst
@@ -585,6 +596,7 @@ public class GriefPrevention extends JavaPlugin
         this.config_claims_unusedClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.UnusedClaimDays", 14);
         this.config_claims_expirationDays = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", 60);
         this.config_claims_expirationDaysForDibs = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactiveForDibs", 30);
+        this.config_claims_daysUntilApprovalExpires = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysForApproval", 3);
         this.config_claims_expirationExemptionTotalBlocks = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasTotalClaimBlocks", 10000);
         this.config_claims_expirationExemptionBonusBlocks = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasBonusClaimBlocks", 5000);
         this.config_claims_survivalAutoNatureRestoration = config.getBoolean("GriefPrevention.Claims.Expiration.AutomaticNatureRestoration.SurvivalWorlds", false);
@@ -831,6 +843,7 @@ public class GriefPrevention extends JavaPlugin
         outConfig.set("GriefPrevention.Claims.Expiration.UnusedClaimDays", this.config_claims_unusedClaimExpirationDays);       
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", this.config_claims_expirationDays);
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.DaysInactiveForDibs", this.config_claims_expirationDaysForDibs);
+        outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.DaysForApproval", this.config_claims_daysUntilApprovalExpires);
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasTotalClaimBlocks", this.config_claims_expirationExemptionTotalBlocks);
         outConfig.set("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasBonusClaimBlocks", this.config_claims_expirationExemptionBonusBlocks);
         outConfig.set("GriefPrevention.Claims.Expiration.AutomaticNatureRestoration.SurvivalWorlds", this.config_claims_survivalAutoNatureRestoration);
@@ -1017,6 +1030,66 @@ public class GriefPrevention extends JavaPlugin
 		
 		if(cmd.getName().equalsIgnoreCase("showDibs")){
 			return showDibs(player);
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("approveDibs")){
+			return approveDibs(player);
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("completeDibs")){
+			return completeDibs(player);
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("showPendingApprovals")){
+			if(claimsPendingApproval.isEmpty())
+				GriefPrevention.sendMessage(player, TextMode.Success, "There are no claims pending approval");
+			List<Claim> toRemove = new ArrayList<Claim>();
+			for(Claim c : claimsPendingApproval.values()){
+				if(c.dibers.isEmpty()){
+					toRemove.add(c);
+					continue;
+				}
+				listPendingApprovals(c, lookupPlayerName(c.dibers.get(0)), player);
+			}
+			for(Claim c : toRemove){
+				claimsPendingApproval.remove(c.id);
+			}
+			return true;
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("showApprovals")){
+			List<Claim> list = approvedClaimsMap.get(player.getUniqueId());
+			List<Claim> needsRemoved = new ArrayList<Claim>();
+			if(list != null){
+				for(Claim c : list){
+					if(c.isApprovalExpired()){
+						needsRemoved.add(c);
+						continue;
+					}					
+					notifyOnApproval(c, player);
+				}
+				for(Claim c : needsRemoved){
+					c.handleExpiredApproval(true);
+				}
+				GriefPrevention.sendMessage(player, TextMode.Info, "To remove the claim, stand in it and run /completedibs");
+			}
+			else{
+				sendMessage(player, TextMode.Err, "You have no approved claims.");
+			}
+			return true;
+		}
+		
+		if(cmd.getName().equalsIgnoreCase("tptoclaim")){
+			if(args.length != 1) return false;
+			String key = player.getUniqueId().toString() + ";;;" + args[0];
+			if(!playersPendingTpToClaim.containsKey(key)){
+				GriefPrevention.sendMessage(player, TextMode.Err, Messages.NoPermissionForCommand);
+			}
+			else{
+				player.teleport(playersPendingTpToClaim.get(key));
+				playersPendingTpToClaim.remove(key);
+			}
+			return true;
 		}
 		
 		if(cmd.getName().equalsIgnoreCase("removeOldClaims"))
@@ -3760,13 +3833,91 @@ public class GriefPrevention extends JavaPlugin
 		return true;
 	}
 	
+	private boolean approveDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.dibers.isEmpty()){
+			GriefPrevention.sendMessage(player, TextMode.Warn, "No one has called dibs on this claim");
+		}
+		else{
+			claim.approvedDiber = claim.dibers.get(0);
+			claim.approvalDate = System.currentTimeMillis();
+			dataStore.saveClaim(claim);
+			GriefPrevention.sendMessage(player, TextMode.Success, "You have approved this claim for removal by " + lookupPlayerName(claim.approvedDiber));
+			claimsPendingApproval.remove(claim.id);
+			mapApprovedPlayer(claim);
+			Player dibber = Bukkit.getPlayer(claim.approvedDiber); 
+			if(dibber != null && dibber.isOnline()){
+				notifyOnApproval(claim, dibber);
+			}
+		}		
+		return true;
+	}
+	
+	private boolean completeDibs(Player player){
+		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
+		if(claim == null){
+			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
+		}
+		else if(claim.approvedDiber == null || !claim.approvedDiber.equals(player.getUniqueId())){
+			GriefPrevention.sendMessage(player, TextMode.Err, "You are not approved to remove this claim!");
+		}
+		else{
+			Long time = removalCommandUsers.get(player.getUniqueId());
+			//They haven't run the command, or they ran it more than 10 seconds ago
+			if(time == null || (System.currentTimeMillis() - time > 10000)){
+				String warning = ChatColor.RED + "======" + ChatColor.GOLD + "WARNING! WARNING! WARNING!" + ChatColor.RED + "======";
+				player.sendMessage("");
+				player.sendMessage("");
+				player.sendMessage(warning);
+				player.sendMessage(warning);
+				player.sendMessage(warning);
+				player.sendMessage("");
+				GriefPrevention.sendMessage(player, TextMode.Warn, "Using this command will remove the claim and EVERYTHING inside it. "
+						+ "If you are absolutely sure you want to do this, run the command again. YOU HAVE BEEN WARNED!!!");
+				player.sendMessage("");
+				player.sendMessage("");
+				removalCommandUsers.put(player.getUniqueId(), System.currentTimeMillis());
+			}
+			else{
+				removalCommandUsers.remove(player.getUniqueId());
+				Location greater = claim.getGreaterBoundaryCorner();
+				greater.setY(255);
+				Location lesser = claim.getLesserBoundaryCorner();
+				lesser.setY(0);
+				
+				CuboidSelection sel = new CuboidSelection(greater.getWorld(), greater, lesser);
+				try{
+					Region reg = sel.getRegionSelector().getRegion();
+					EditSession ses = WorldEdit.getInstance().getEditSessionFactory().getEditSession(reg.getWorld(), -1);
+					reg.getWorld().regenerate(reg, ses);
+					
+					String msg = player.getName() + " removed a claim at " + lesser.getBlockX() + "x " +
+							lesser.getBlockY() + "y " + lesser.getBlockZ() + "z belonging to " + lookupPlayerName(claim.ownerID); 
+					
+					GriefPrevention.AddLogEntry(msg, CustomLogEntryTypes.SuspiciousActivity, false);
+				}catch(Exception ex){
+					GriefPrevention.sendMessage(player, TextMode.Err, "Could not remove claim. Please contact a staff member!");
+					return true;
+				}
+				removeApprovedPlayer(claim);
+				dataStore.deleteClaim(claim, true, true);
+				GriefPrevention.sendMessage(player, TextMode.Success, "The claim has been removed and is now available to build on");				
+			}
+		}
+		
+		return true;
+	}
+	
 	private boolean showDibs(Player player){
 		Claim claim = this.dataStore.getClaimAt(player.getLocation(), true, null);
 		if(claim == null){
 			GriefPrevention.sendMessage(player, TextMode.Err, Messages.DeleteClaimMissing);
 		}
 		else if(claim.dibers.isEmpty()){
-			GriefPrevention.sendMessage(player, TextMode.Warn, "Noone has called dibs on this claim");
+			GriefPrevention.sendMessage(player, TextMode.Warn, "No one has called dibs on this claim");
 		}
 		else{
 			GriefPrevention.sendMessage(player, TextMode.Success, "The following players have called dibs on this claim:");
@@ -3807,7 +3958,22 @@ public class GriefPrevention extends JavaPlugin
 		
 		if(claim.dibers.contains(id)){
 			claim.dibers.remove(id);
+			if(claim.approvedDiber != null && claim.approvedDiber.equals(id)){
+				removeApprovedPlayer(claim);
+				claim.approvedDiber = null; //remove their approval if removing from dibs list
+				claim.approvalDate = 0L;
+			}
 			dataStore.saveClaim(claim);
+			
+			if(claim.dibers.isEmpty() && claimsPendingApproval.containsKey(claim.id)){
+				claimsPendingApproval.remove(claim.id);
+			}
+			
+			//there are more dibers, but no one has been approved
+			if(!claim.dibers.isEmpty() && claim.approvedDiber == null && !claimsPendingApproval.containsKey(claim.id)){
+				claimsPendingApproval.put(claim.id, claim); //don't notify on removal				
+			}
+				
 			String tar = toRemove == "" ? "your" : toRemove + "'s";
 			GriefPrevention.sendMessage(player, TextMode.Success, "Removed " + tar + " dib on this claim");
 		}
@@ -3835,8 +4001,12 @@ public class GriefPrevention extends JavaPlugin
 				boolean isFirst = claim.dibers.isEmpty();
 				claim.dibers.add(player.getUniqueId());
 				dataStore.saveClaim(claim);
-				if(isFirst)
-					GriefPrevention.sendMessage(player, TextMode.Success, "You've called dibs on this claim. Staff will be in touch with you on taking ownership if it.");
+				
+				if(isFirst){
+					//Only add to list if the claim if they are the first to put dibs on the claim
+					addAndNotifyForDibs(claim, player);
+					GriefPrevention.sendMessage(player, TextMode.Success, "You've called dibs on this claim. If you are approved for the claim, you will have 3 days after being approved to complete your dibs. Use /showapprovals to know when you have been approved.");
+				}
 				else
 					GriefPrevention.sendMessage(player, TextMode.Success, "You've been added to the queue for this claim. However, someone has called dibs first, so they have priority.");
 			}
@@ -4084,7 +4254,54 @@ public class GriefPrevention extends JavaPlugin
 		}		
 		return true;
 	}
-
+	
+	private void addAndNotifyForDibs(Claim claim, Player dibber){
+		claimsPendingApproval.put(claim.id, claim);
+		for(Player p : Bukkit.getOnlinePlayers()){
+			if(p.hasPermission("griefprevention.deleteclaims")){
+				notifyForDibs(claim, dibber.getName(), p);
+			}				
+		}
+	}
+	
+	private static void notifyForDibs(Claim claim, String dibberName, Player p){
+		p.sendMessage("");
+		Location loc = claim.getLesserBoundaryCorner();
+		String cmd = "tellraw {to} [\"\",{\"text\":\"Player {p} has placed dibs on a claim. \",\"color\":\"gold\"},{\"text\":\"Click here to teleport to it\",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/tppos {X} {Y} {Z}\"},\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"text\":\"\",\"extra\":[{\"text\":\"Teleport to {X} {Y} {Z}\"}]}}}]";
+		cmd = cmd.replace("{to}", p.getName())
+				 .replace("{p}", dibberName)
+				 .replace("{X}", String.valueOf(loc.getBlockX()))
+				 .replace("{Y}", String.valueOf(loc.getWorld().getHighestBlockYAt(loc)))
+				 .replace("{Z}", String.valueOf(loc.getBlockZ()));
+		Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+		p.sendMessage("");
+	}
+	
+	private static void listPendingApprovals(Claim claim, String dibberName, Player p){
+		Location loc = claim.getLesserBoundaryCorner();
+		String cmd = "tellraw {to} [\"\",{\"text\":\"{p} at {X}x {Y}y {Z}z. \",\"color\":\"gold\"},{\"text\":\"Teleport to claim\",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/tppos {X} {Y} {Z}\"},\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"text\":\"\",\"extra\":[{\"text\":\"Teleport to {X} {Y} {Z}\"}]}}}]";
+		cmd = cmd.replace("{to}", p.getName())
+				 .replace("{p}", dibberName)
+				 .replace("{X}", String.valueOf(loc.getBlockX()))
+				 .replace("{Y}", String.valueOf(loc.getWorld().getHighestBlockYAt(loc)))
+				 .replace("{Z}", String.valueOf(loc.getBlockZ()));
+		Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+	}
+	
+	private static void notifyOnApproval(Claim claim, Player player){		
+		Location loc = claim.getLesserBoundaryCorner();
+		loc.setY(loc.getWorld().getHighestBlockYAt(loc));
+		String cmd = "tellraw {to} [\"\",{\"text\":\"You have been approved for the claim at {X}x {Y}y {Z}z. \",\"color\":\"gold\"},{\"text\":\"Click to teleport\",\"color\":\"green\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/tptoclaim {id}\"},\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"text\":\"\",\"extra\":[{\"text\":\"{X} {Y} {Z}\"}]}}}]";
+		cmd = cmd.replace("{id}", String.valueOf(claim.id))
+				 .replace("{to}", player.getName())
+				 .replace("{X}", String.valueOf(loc.getBlockX()))
+				 .replace("{Y}", String.valueOf(loc.getBlockY()))
+				 .replace("{Z}", String.valueOf(loc.getBlockZ()));
+		Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+		playersPendingTpToClaim.put(player.getUniqueId().toString() + ";;;" + String.valueOf(claim.id), loc);
+		
+	}
+	
 	private static Block getTargetNonAirBlock(Player player, int maxDistance) throws IllegalStateException
     {
         BlockIterator iterator = new BlockIterator(player.getLocation(), player.getEyeHeight(), maxDistance);
@@ -4097,6 +4314,22 @@ public class GriefPrevention extends JavaPlugin
         
         return result;
     }
+	
+	public static void mapApprovedPlayer(Claim claim){
+		List<Claim> list = approvedClaimsMap.get(claim.approvedDiber);
+    	if(list == null)
+    		list = new ArrayList<Claim>();
+    	list.add(claim);
+    	approvedClaimsMap.put(claim.approvedDiber, list);
+	}
+	
+	public static void removeApprovedPlayer(Claim claim){
+		List<Claim> list = approvedClaimsMap.get(claim.approvedDiber);
+		if(list == null)
+			return;
+		list.removeIf(c -> c.id == claim.id);
+		approvedClaimsMap.put(claim.approvedDiber, list);
+	}
 
     public boolean containsBlockedIP(String message)
     {
@@ -4147,8 +4380,6 @@ public class GriefPrevention extends JavaPlugin
 
     public static boolean isNewToServer(Player player)
     {
-        if(player.hasAchievement(Achievement.MINE_WOOD)) return false;
-        
         PlayerData playerData = instance.dataStore.getPlayerData(player.getUniqueId());
         if(playerData.getClaims().size() > 0) return false;
         

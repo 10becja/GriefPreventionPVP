@@ -19,6 +19,7 @@
 package me.ryanhamshire.GriefPrevention;
 
 import java.net.InetAddress;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -32,6 +33,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -758,7 +760,7 @@ class PlayerEventHandler implements Listener {
 								OfflinePlayer bannedAccount = GriefPrevention.instance
 										.getServer().getOfflinePlayer(
 												info2.bannedAccountName);
-								bannedAccount.setBanned(false);
+								Bukkit.getBanList(BanList.Type.NAME).pardon(bannedAccount.getName());
 								this.tempBannedIps.remove(j--);
 							}
 						}
@@ -2180,6 +2182,10 @@ class PlayerEventHandler implements Listener {
 
 				// claim case
 				else {
+					if(claim.isApprovalExpired()){
+						claim.handleExpiredApproval(true);
+					}
+					
 					playerData.lastClaim = claim;
 					GriefPrevention.sendMessage(player, TextMode.Info,
 							Messages.BlockClaimed, claim.getOwnerName());
@@ -2206,38 +2212,38 @@ class PlayerEventHandler implements Listener {
 					}
 
 					// if permission, tell about the player's offline time
-					if (!claim.isAdminClaim()
-							&& (player
-									.hasPermission("griefprevention.deleteclaims") || player
-									.hasPermission("griefprevention.seeinactivity"))) {
+					if (!claim.isAdminClaim() && player.hasPermission("griefprevention.seeinactivity")) {
 						if (claim.parent != null) {
 							claim = claim.parent;
 						}
-						PlayerData otherPlayerData = this.dataStore
-								.getPlayerData(claim.ownerID);
+						PlayerData otherPlayerData = this.dataStore.getPlayerData(claim.ownerID);
 						Date lastLogin = otherPlayerData.getLastLogin();
 						Date now = new Date();
-						long daysElapsed = (now.getTime() - lastLogin.getTime())
-								/ (1000 * 60 * 60 * 24);
+						long daysElapsed = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24);
 
-						GriefPrevention.sendMessage(player, TextMode.Info,
-								Messages.PlayerOfflineTime,
-								String.valueOf(daysElapsed));
-						GriefPrevention.sendMessage(player, TextMode.Info,
-								"Claim ID: " + claim.getID());
-						if (!claim.dibers.isEmpty()) {
-							GriefPrevention.sendMessage(
-									player,
-									TextMode.Info,
-									"First dibs: " + ChatColor.GREEN
-											+ claim.getFirstDiberName());
-						}
-
+						GriefPrevention.sendMessage(player, TextMode.Info, Messages.PlayerOfflineTime, String.valueOf(daysElapsed));
+						
 						// drop the data we just loaded, if the player isn't
 						// online
-						if (GriefPrevention.instance.getServer().getPlayer(
-								claim.ownerID) == null)
+						if (GriefPrevention.instance.getServer().getPlayer(claim.ownerID) == null)
 							this.dataStore.clearCachedPlayerData(claim.ownerID);
+					}
+					
+					if(player.hasPermission("griefPrevention.deleteclaims") || player.hasPermission("griefPrevention.staff")){						
+						GriefPrevention.sendMessage(player, TextMode.Info, "Claim ID: " + claim.getID());
+						if(claim.approvalDate > 0){
+							Date date = new Date(claim.approvalDate);
+							SimpleDateFormat format = new SimpleDateFormat("dd/MM/yyyy");
+							GriefPrevention.sendMessage(player, TextMode.Info, "Dibs Approval Date: " + format.format(date));
+						}
+					}
+					
+					if (!claim.dibers.isEmpty()) {
+						GriefPrevention.sendMessage(
+								player,
+								TextMode.Info,
+								"First dibs: " + (claim.approvalDate > 0 ? ChatColor.GREEN : ChatColor.RED)
+										+ claim.getFirstDiberName());
 					}
 				}
 

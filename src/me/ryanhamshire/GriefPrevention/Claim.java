@@ -55,6 +55,8 @@ public class Claim
 	
 	//people who have placed dibs on this claim
 	public ArrayList<UUID> dibers = new ArrayList<UUID>();
+	public UUID approvedDiber;
+	public long approvalDate;
 	
 	//whether or not this claim is in the data store
 	//if a claim instance isn't in the data store, it isn't "active" - players can't interract with it 
@@ -281,7 +283,24 @@ public class Claim
 		PlayerData pd = GriefPrevention.instance.dataStore.getPlayerData(this.ownerID);
 		Calendar lastLogin = Calendar.getInstance();
 		lastLogin.add(Calendar.DATE, -GriefPrevention.instance.config_claims_expirationDaysForDibs);
+		if(isApprovalExpired())
+			handleExpiredApproval(true);
 		return lastLogin.getTime().after(pd.getLastLogin());
+	}
+	
+	public boolean isApprovalExpired(){
+		return System.currentTimeMillis() - this.approvalDate > (GriefPrevention.instance.config_claims_daysUntilApprovalExpires * 86400000);
+	}
+	
+	public void handleExpiredApproval(boolean save){
+		GriefPrevention.removeApprovedPlayer(this);
+		this.dibers.remove(this.approvedDiber);
+		this.approvedDiber = null;
+		this.approvalDate = 0L;
+		if(!this.dibers.isEmpty())
+        	GriefPrevention.claimsPendingApproval.put(this.id, this);
+		if(save)
+			GriefPrevention.instance.dataStore.saveClaim(this);
 	}
 	
 	public boolean isNear(Location location, int howNear){
