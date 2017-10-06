@@ -33,6 +33,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
@@ -759,7 +760,7 @@ class PlayerEventHandler implements Listener {
 								OfflinePlayer bannedAccount = GriefPrevention.instance
 										.getServer().getOfflinePlayer(
 												info2.bannedAccountName);
-								bannedAccount.setBanned(false);
+								Bukkit.getBanList(BanList.Type.NAME).pardon(bannedAccount.getName());
 								this.tempBannedIps.remove(j--);
 							}
 						}

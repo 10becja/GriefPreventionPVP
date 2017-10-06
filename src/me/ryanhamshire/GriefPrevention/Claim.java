@@ -293,6 +293,7 @@ public class Claim
 	}
 	
 	public void handleExpiredApproval(boolean save){
+		GriefPrevention.removeApprovedPlayer(this);
 		this.dibers.remove(this.approvedDiber);
 		this.approvedDiber = null;
 		this.approvalDate = 0L;

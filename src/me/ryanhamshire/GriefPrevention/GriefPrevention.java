@@ -3902,7 +3902,7 @@ public class GriefPrevention extends JavaPlugin
 					GriefPrevention.sendMessage(player, TextMode.Err, "Could not remove claim. Please contact a staff member!");
 					return true;
 				}
-				
+				removeApprovedPlayer(claim);
 				dataStore.deleteClaim(claim, true, true);
 				GriefPrevention.sendMessage(player, TextMode.Success, "The claim has been removed and is now available to build on");				
 			}
@@ -3959,6 +3959,7 @@ public class GriefPrevention extends JavaPlugin
 		if(claim.dibers.contains(id)){
 			claim.dibers.remove(id);
 			if(claim.approvedDiber != null && claim.approvedDiber.equals(id)){
+				removeApprovedPlayer(claim);
 				claim.approvedDiber = null; //remove their approval if removing from dibs list
 				claim.approvalDate = 0L;
 			}
@@ -4321,6 +4322,14 @@ public class GriefPrevention extends JavaPlugin
     	list.add(claim);
     	approvedClaimsMap.put(claim.approvedDiber, list);
 	}
+	
+	public static void removeApprovedPlayer(Claim claim){
+		List<Claim> list = approvedClaimsMap.get(claim.approvedDiber);
+		if(list == null)
+			return;
+		list.removeIf(c -> c.id == claim.id);
+		approvedClaimsMap.put(claim.approvedDiber, list);
+	}
 
     public boolean containsBlockedIP(String message)
     {
@@ -4371,8 +4380,6 @@ public class GriefPrevention extends JavaPlugin
 
     public static boolean isNewToServer(Player player)
     {
-        if(player.hasAchievement(Achievement.MINE_WOOD)) return false;
-        
         PlayerData playerData = instance.dataStore.getPlayerData(player.getUniqueId());
         if(playerData.getClaims().size() > 0) return false;
         
