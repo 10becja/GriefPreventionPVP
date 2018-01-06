@@ -352,12 +352,12 @@ public class GriefPrevention extends JavaPlugin
 		String dataMode = (this.dataStore instanceof FlatFileDataStore)?"(File Mode)":"(Database Mode)";
 		AddLogEntry("Finished loading data " + dataMode + ".");
 		
-		//unless claim block accrual is disabled, start the recurring per 10 minute event to give claim blocks to online players
+		//unless claim block accrual is disabled, start the recurring per 2 minute event to give claim blocks to online players
 		//20L ~ 1 second
 		if(this.config_claims_blocksAccruedPerHour_default > 0 || this.config_claims_blocksAccruedPerHour_faster > 0 || this.config_claims_blocksAccruedPerHour_fastest > 0)
 		{
 			DeliverClaimBlocksTask task = new DeliverClaimBlocksTask(null);
-			this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task, 20L * 60 * 10, 20L * 60 * 10);
+			this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task, 20L * 60 * 2, 20L * 60 * 2);
 		}
 		
 		//start the recurring cleanup event for entities in creative worlds
@@ -365,8 +365,17 @@ public class GriefPrevention extends JavaPlugin
 		this.getServer().getScheduler().scheduleSyncDelayedTask(GriefPrevention.instance, task, 20L * 60 * 2);
 		
 		//start recurring cleanup scan for unused claims belonging to inactive players
-		FindUnusedClaimsTask task2 = new FindUnusedClaimsTask();
-		this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task2, 20L * 60, 20L * 60);
+		//THIS DOESN'T APPEAR TO WORK, OR IS REALLY BROKEN...
+//		FindUnusedClaimsTask task2 = new FindUnusedClaimsTask();
+//		this.getServer().getScheduler().scheduleSyncRepeatingTask(this, task2, 20L * 60, 20L * 60);
+		this.getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable(){
+
+			@Override
+			public void run() {
+				removeOldClaims();				
+			}
+			
+		}, 20L * 60 * 5, 20L * 60 * 5); //wait 5 minutes, then repeat every 5 minutes
 		
 		//register for events
 		PluginManager pluginManager = this.getServer().getPluginManager();
@@ -4230,6 +4239,7 @@ public class GriefPrevention extends JavaPlugin
 	
 	private boolean removeOldClaims()
 	{
+		AddLogEntry("Starting old claim removal");
 		Set<UUID> owners = new HashSet<UUID>();
 		for(Claim c : this.dataStore.claims)
 			owners.add(c.ownerID);

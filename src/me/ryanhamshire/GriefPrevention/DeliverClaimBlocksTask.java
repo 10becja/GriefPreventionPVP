@@ -75,10 +75,10 @@ class DeliverClaimBlocksTask implements Runnable
                     else if(player.hasPermission("griefprevention.fasteraccrual")) accrualRate = GriefPrevention.instance.config_claims_blocksAccruedPerHour_faster;
                     
                     //add blocks
-                    int accruedBlocks = accrualRate / 6;
+                    int accruedBlocks = accrualRate / 30;
                     if(accruedBlocks < 0) accruedBlocks = 1;
                     playerData.accrueBlocks(accruedBlocks);
-                    GriefPrevention.AddLogEntry("Delivering " + accruedBlocks + " blocks to " + player.getName(), CustomLogEntryTypes.Debug, true);
+                    GriefPrevention.AddLogEntry("Delivering " + accruedBlocks + " blocks to " + player.getName(), CustomLogEntryTypes.AdminActivity, true);
                     
                     //intentionally NOT saving data here to reduce overall secondary storage access frequency
                     //many other operations will cause this players data to save, including his eventual logout
