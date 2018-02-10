@@ -66,9 +66,9 @@ class DeliverClaimBlocksTask implements Runnable
                 //if he's not in a vehicle and has moved at least three blocks since the last check
                 //and he's not being pushed around by fluids
                 if(!player.isInsideVehicle() && 
-                   (lastLocation == null || lastLocation.distanceSquared(player.getLocation()) >= 0) &&
+                   (lastLocation == null || lastLocation.distanceSquared(player.getLocation()) >= 3) &&
                    !player.getLocation().getBlock().isLiquid())
-                {                   
+                {      
                     //determine how fast blocks accrue for this player
                     int accrualRate = GriefPrevention.instance.config_claims_blocksAccruedPerHour_default;
                     if(player.hasPermission("griefprevention.fastestaccrual")) accrualRate = GriefPrevention.instance.config_claims_blocksAccruedPerHour_fastest;
